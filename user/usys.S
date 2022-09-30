@@ -105,3 +105,13 @@ uptime:
  li a7, SYS_uptime
  ecall
  ret
+.global getyear
+getyear:
+ li a7, SYS_getyear
+ ecall
+ ret
+.global trace
+trace:
+ li a7, SYS_trace
+ ecall
+ ret

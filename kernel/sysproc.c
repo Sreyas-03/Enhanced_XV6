@@ -89,3 +89,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_trace(void)
+{
+  return 2003;
+}
+
+uint64
+sys_getyear(void) // this is for testing purpose only, can be removed
+{
+  return 2003;
+}
