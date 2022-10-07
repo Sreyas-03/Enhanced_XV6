@@ -11,7 +11,7 @@ int main(int argc, char *argv[]){
 	char *command = argv[2];
 	int mask = atoi(argv[1]);
 
-	trace(mask);
+	strace(mask);
 	exec(command, &argv[2]);
 
 	exit(0);

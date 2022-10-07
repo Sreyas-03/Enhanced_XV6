@@ -91,13 +91,15 @@ sys_uptime(void)
 }
 
 uint64
-sys_trace(void)
+sys_strace(void)
 {
-  return 2003;
+  int n;
+  argint(0, &n);
+  strace(n);
+  return 0;
 }
-
-uint64
-sys_getyear(void) // this is for testing purpose only, can be removed
-{
-  return 2003;
-}
+// uint64
+// sys_getyear(void) // this is for testing purpose only, can be removed
+// {
+//   return 2003;
+// }
