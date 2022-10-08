@@ -105,5 +105,6 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  int strace_bit;
+  uint32 strace_bit;           // stores the mask when strace is invoked
+  uint64 birth_time;           // stores the time of invocation of the process, (for FCFS)
 };

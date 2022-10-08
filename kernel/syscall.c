@@ -188,7 +188,10 @@ void prompt_strace(struct proc *p, int num)
   for (int i = 0; i < syscall_info[num].numArgs; i++)
   {
     argint(i, &arg);
-    printf((i == syscall_info[num].numArgs - 1) ? "%d" : "%d ", arg);
+    if (i == syscall_info[num].numArgs - 1)
+      printf("%d", arg);
+    else
+      printf("%d ", arg);
   }
   printf(") -> %d\n", p->trapframe->a0);
   return;
@@ -212,7 +215,7 @@ void syscall(void)
     p->trapframe->a0 = -1;
   }
 
-  if (num > 0 && num < NELEM(syscalls) && syscalls[num] && (p->strace_bit & (1 << num)))
+  if (num > 0 && num < NELEM(syscalls) && syscalls[num] && ((p->strace_bit>>num) & 1))
   {
     prompt_strace(p, num);
   }

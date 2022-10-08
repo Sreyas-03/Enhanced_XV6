@@ -9,6 +9,11 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+// proc.c schedulers
+void            fcfs(struct cpu *c);
+void            roundRobin(struct cpu *c);
+
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
