@@ -32,17 +32,19 @@ struct spinlock wait_lock;
 uint64
 random(void)
 {
-  // Take from http://stackoverflow.com/questions/1167253/implementation-of-rand
-  static unsigned int z1 = 12345, z2 = 12345, z3 = 12345, z4 = 12345;
-  unsigned int b;
-  b = ((z1 << 6) ^ z1) >> 13;
-  z1 = ((z1 & 4294967294U) << 18) ^ b;
-  b = ((z2 << 2) ^ z2) >> 27;
-  z2 = ((z2 & 4294967288U) << 2) ^ b;
-  b = ((z3 << 13) ^ z3) >> 21;
-  z3 = ((z3 & 4294967280U) << 7) ^ b;
-  b = ((z4 << 3) ^ z4) >> 12;
-  z4 = ((z4 & 4294967168U) << 13) ^ b;
+  static uint64 z1 = 5234254; // assuming a random seed to generate random numbers
+  static uint64 z2 = 1764237; // static to ensure same number is not generated all the time
+  static uint64 z3 = 3986790;
+  static uint64 z4 = 9823476;
+  static uint64 b;
+  b = ((z1 << 6) ^ z1) >> 5;
+  z1 = ((z1 & 75643U) << 13) ^ b;
+  b = ((z2 << 23) ^ z2) >> 12;
+  z2 = ((z2 & 873256U) << 17) ^ b;
+  b = ((z3 << 13) ^ z3) >> 19;
+  z3 = ((z3 & 71549U) << 7) ^ b;
+  b = ((z4 << 3) ^ z4) >> 11;
+  z4 = ((z4 & 326565U) << 13) ^ b;
 
   return (z1 ^ z2 ^ z3 ^ z4) / 2;
 }
@@ -170,6 +172,7 @@ found:
 
   p->birth_time = sys_uptime(); // sys_uptime - gives number of ticks since start
   p->num_tickets = 1;           // # tickets = 1 by default for every process
+  p->static_priority = 60;             // priority = 60 by default
   return p;
 }
 
@@ -196,6 +199,10 @@ freeproc(struct proc *p)
   p->strace_bit = 0;
   p->birth_time = __INT_MAX__;
   p->num_tickets = 0;
+  p->static_priority = 0; // for PBS
+  p->dynamic_priority = 0;
+  p->sleep_time = 0;
+  p->running_time = 0;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -352,8 +359,12 @@ int fork(void)
   np->state = RUNNABLE;
   release(&np->lock);
   np->strace_bit = p->strace_bit;
-  np->birth_time = p->birth_time;
+  np->birth_time = p->birth_time; // check if this and equalities below this are required
   np->num_tickets = np->num_tickets; // ensuring # tickets of parent = # tickets of child
+  np->static_priority = p->static_priority; // check if this is required
+  np->dynamic_priority = p->dynamic_priority;
+  np->sleep_time = p->sleep_time;
+  np->running_time = p->running_time;
   return pid;
 }
 
@@ -472,6 +483,8 @@ int wait(uint64 addr)
     sleep(p, &wait_lock); // DOC: wait-sleep
   }
 }
+
+///////////////////////// SCHEDULERS ////////////////////////////////
 /////////////////////// ROUND ROBIN - original implementation //////////////
 void roundRobin(struct cpu *c)
 {
@@ -611,6 +624,59 @@ void lotteryBased(struct cpu *c)
 
 //////////////////////////////////////////////////////////////////
 
+////////////////// PRIORITY BASED SCHEDULING /////////////////////
+void priority_based(struct cpu* c)
+{
+  struct proc* chosenproc = 0;
+
+  for(int i=0; i<NPROC; i++)
+  {
+    struct proc* p = &proc[i];
+    acquire(&p->lock);
+    if (p->state != RUNNABLE)
+    {
+      release(&p->lock);
+      continue;
+    }
+
+    p->dynamic_priority = calcDP(p);
+    if (!chosenproc || (p->dynamic_priority < chosenproc->dynamic_priority))  // this works because of short-circuiting
+    {
+      if(chosenproc)
+        release(&chosenproc->lock);
+
+      chosenproc = p;
+    }
+
+    if (p != chosenproc)
+      release(&p->lock);
+  }
+
+  if (chosenproc)
+  {
+    // Switch to chosen process.  It is the process's job
+    // to release its lock and then reacquire it
+    // before jumping back to us.
+    chosenproc->state = RUNNING;
+    chosenproc->sleep_time = 0;
+    c->proc = chosenproc;
+    swtch(&c->context, &chosenproc->context);
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    release(&chosenproc->lock);
+  }
+  return;
+}
+
+//////////////////////////////////////////////////////////////////
+
+////////////////////// MLFQ SCHEDULING ///////////////////////////
+
+
+//////////////////////////////////////////////////////////////////
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -627,7 +693,7 @@ void scheduler(void)
   {
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-    lotteryBased(c);
+    priority_based(c);
   }
 }
 
@@ -712,7 +778,6 @@ void sleep(void *chan, struct spinlock *lk)
 
   // Tidy up.
   p->chan = 0;
-
   // Reacquire original lock.
   release(&p->lock);
   acquire(lk);
@@ -864,4 +929,70 @@ int settickets(int numTickets)
 
   myproc()->num_tickets = numTickets;
   return numTickets;
+}
+
+int calcDP(struct proc* p)
+{
+  int sleep_time = p->sleep_time;
+  int running_time = p->running_time;
+  int SP = p->static_priority;
+
+  if ((sleep_time + running_time) == 0)
+    return 5; // assume noraml niceness
+
+  int niceness = 10* ((int)sleep_time/(sleep_time + running_time));
+  int DP = ((SP - niceness + 5) < 100) ?  (SP - niceness + 5) : 100;
+
+  return (DP>0) ? DP:0;
+}
+
+int set_priority(int new_priority, int pid)
+{
+  struct proc* chosen = 0;
+  for(int i=0; i<NPROC; i++)
+  {
+    struct proc *p = &proc[i];
+    acquire(&p->lock);
+    if (pid == p->pid)
+    {
+      chosen = p;
+      break;
+    }
+    release(&p->lock);
+  }
+  
+  int prevSP = -1;
+  if(chosen)
+  {
+    prevSP = chosen->static_priority;
+    chosen->static_priority = new_priority;
+    chosen->dynamic_priority = calcDP(chosen);
+    release(&chosen->lock);
+  }
+  else
+  {
+    printf("Given pid does not exist\n");
+  }
+  return prevSP;
+}
+
+void PBS_find_times()
+{
+  struct proc* p;
+  for(int i=0; i<NPROC; i++)
+  {
+    p = &proc[i];
+    acquire(&p->lock);
+
+    if (p->state == RUNNING)
+    {
+      p->sleep_time = 0;
+      (p->running_time)++;
+    }
+    else if (p->state == SLEEPING)
+      (p->sleep_time)++;
+
+    release(&p->lock);
+  }
+  return;
 }

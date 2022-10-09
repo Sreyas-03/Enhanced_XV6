@@ -111,6 +111,20 @@ sys_settickets(void)
   return -1;
 }
 
+
+uint64
+sys_set_priority(void)
+{
+  int n, pid;
+  argint(0, &n);
+  argint(1, &pid);
+
+  int prev_SP = set_priority(n, pid);
+  if (prev_SP > 100 || prev_SP < 0)
+    return -1;
+  return 0;
+}
+
 // uint64
 // sys_getyear(void) // this is for testing purpose only, can be removed
 // {

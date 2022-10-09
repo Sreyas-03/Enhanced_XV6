@@ -107,5 +107,9 @@ struct proc {
   char name[16];               // Process name (debugging)
   uint32 strace_bit;           // stores the mask when strace is invoked
   uint64 birth_time;           // stores the time of invocation of the process, (for FCFS)
-  uint64 num_tickets;           // stores the number of tickets allocated to the process (LBS)
+  uint64 num_tickets;          // stores the number of tickets allocated to the process (LBS)
+  uint16 static_priority;      // stores the static priority of a proc. For PBS
+  uint64 sleep_time;           // stores the tick number when it was put to sleep
+  uint64 running_time;         // stores the tick number when it started running
+  uint16 dynamic_priority;     // stores the dynamic priority for PBS
 };

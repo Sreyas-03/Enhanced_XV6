@@ -134,6 +134,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_strace\
 	$U/_settickets\
+	$U/_set_priority\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

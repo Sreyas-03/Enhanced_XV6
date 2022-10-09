@@ -12,7 +12,8 @@ struct superblock;
 // proc.c schedulers
 // void            fcfs(struct cpu*);
 // void            roundRobin(struct cpu*);
-
+void            PBS_find_times();
+int             calcDP(struct proc*);
 
 // bio.c
 void            binit(void);
@@ -114,10 +115,13 @@ void            procdump(void);
 
 /////////////////// CREATED SYSCALLS//////////////////////
 // strace.c
-void            strace(int strace_mask);
+void            strace(int);
 
 // settickets.c
-int             settickets(int numTickets);
+int             settickets(int);
+
+// set_priority.c
+int             set_priority(int, int);
 
 //////////////////////////////////////////////////////////
 

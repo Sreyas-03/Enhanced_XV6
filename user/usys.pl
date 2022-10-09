@@ -39,3 +39,4 @@ entry("uptime");
 # entry("getyear"); # this is for testing purposes only, it can be removed
 entry("strace");
 entry("settickets");
+entry("set_priority");

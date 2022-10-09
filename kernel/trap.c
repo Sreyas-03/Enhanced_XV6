@@ -172,6 +172,7 @@ clockintr()
 {
   acquire(&tickslock);
   ticks++;
+  PBS_find_times(); // added for PBS  
   wakeup(&ticks);
   release(&tickslock);
 }

@@ -22,4 +22,5 @@
 #define SYS_close  21
 #define SYS_strace  22
 #define SYS_settickets 23
+#define SYS_set_priority 24
 // #define SYS_getyear 23  // this is for testing purposes onyl, can be removed
