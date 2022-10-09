@@ -10,8 +10,8 @@ struct stat;
 struct superblock;
 
 // proc.c schedulers
-void            fcfs(struct cpu *c);
-void            roundRobin(struct cpu *c);
+// void            fcfs(struct cpu*);
+// void            roundRobin(struct cpu*);
 
 
 // bio.c
@@ -112,8 +112,14 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 
+/////////////////// CREATED SYSCALLS//////////////////////
 // strace.c
 void            strace(int strace_mask);
+
+// settickets.c
+int             settickets(int numTickets);
+
+//////////////////////////////////////////////////////////
 
 // swtch.S
 void            swtch(struct context*, struct context*);

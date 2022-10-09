@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
+uint64 sys_uptime();
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -19,7 +20,6 @@ extern void forkret(void);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
-
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
 // memory model when using p->parent.
@@ -29,6 +29,24 @@ struct spinlock wait_lock;
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
+uint64
+random(void)
+{
+  // Take from http://stackoverflow.com/questions/1167253/implementation-of-rand
+  static unsigned int z1 = 12345, z2 = 12345, z3 = 12345, z4 = 12345;
+  unsigned int b;
+  b = ((z1 << 6) ^ z1) >> 13;
+  z1 = ((z1 & 4294967294U) << 18) ^ b;
+  b = ((z2 << 2) ^ z2) >> 27;
+  z2 = ((z2 & 4294967288U) << 2) ^ b;
+  b = ((z3 << 13) ^ z3) >> 21;
+  z3 = ((z3 & 4294967280U) << 7) ^ b;
+  b = ((z4 << 3) ^ z4) >> 12;
+  z4 = ((z4 & 4294967168U) << 13) ^ b;
+
+  return (z1 ^ z2 ^ z3 ^ z4) / 2;
+}
+
 void proc_mapstacks(pagetable_t kpgtbl)
 {
   struct proc *p;
@@ -151,6 +169,7 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
   p->birth_time = sys_uptime(); // sys_uptime - gives number of ticks since start
+  p->num_tickets = 1;           // # tickets = 1 by default for every process
   return p;
 }
 
@@ -176,6 +195,7 @@ freeproc(struct proc *p)
   p->state = UNUSED;
   p->strace_bit = 0;
   p->birth_time = __INT_MAX__;
+  p->num_tickets = 0;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -333,6 +353,7 @@ int fork(void)
   release(&np->lock);
   np->strace_bit = p->strace_bit;
   np->birth_time = p->birth_time;
+  np->num_tickets = np->num_tickets; // ensuring # tickets of parent = # tickets of child
   return pid;
 }
 
@@ -452,7 +473,7 @@ int wait(uint64 addr)
   }
 }
 /////////////////////// ROUND ROBIN - original implementation //////////////
-void roundRobin(struct cpu* c)
+void roundRobin(struct cpu *c)
 {
   struct proc *p;
   for (p = proc; p < &proc[NPROC]; p++)
@@ -478,27 +499,27 @@ void roundRobin(struct cpu* c)
 
 ///////////////////////////////////////////////////////////////////////////
 
-
 /////////////////////// FCFS implementation ///////////////////
 void fcfs(struct cpu *c)
 {
-  uint64 oldesttime;
-  struct proc *oldestproc;
+  struct proc *oldestproc = 0;
+  uint64 oldesttime = 0;
 
-  for(int i=0; i<NPROC; i++)
+  for (int i = 0; i < NPROC; i++)
   {
     struct proc *p = &proc[i];
-    if (i > 0)
-      oldesttime = oldestproc->birth_time;  // save the time of the oldest proc
-    
     acquire(&p->lock);
-    if ((i==0) || oldesttime > p->birth_time)
+
+    if (oldestproc)
+      oldesttime = oldestproc->birth_time; // save the time of the oldest proc
+
+    if ((oldesttime > p->birth_time) || !oldestproc)
     {
       if (p->state == RUNNABLE)
       {
         if (oldestproc)
-          release(&oldestproc->lock);  // release the prev selected proc, and lock newly selected proc
-        
+          release(&oldestproc->lock); // release the prev selected proc, and lock newly selected proc
+
         oldestproc = p;
       }
     }
@@ -507,18 +528,88 @@ void fcfs(struct cpu *c)
       release(&p->lock);
   }
 
-  if (!oldestproc)  // change state of the newly selected process
+  if (!oldestproc) // change state of the newly selected process
     return;
 
-  oldestproc->state = RUNNING;
-  c->proc = oldestproc;
-  swtch(&c->context, &oldestproc->context);
-  c->proc = 0;
-  release(&oldestproc->lock);
+  if (oldestproc->state == RUNNABLE)
+  {
+    // Switch to chosen process.  It is the process's job
+    // to release its lock and then reacquire it
+    // before jumping back to us.
+    oldestproc->state = RUNNING;
+    c->proc = oldestproc;
+    swtch(&c->context, &oldestproc->context);
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    release(&oldestproc->lock);
+  }
+  return;
 }
 
 /////////////////////////////////////////////////////////////////
 
+//////////////////// LOTTERY BASED implementation /////////////////
+void lotteryBased(struct cpu *c)
+{
+  uint64 totalNumTickets = 0, ticketCnt = 0;
+
+  for (int i = 0; i < NPROC; i++)
+  {
+    struct proc *p = &proc[i];
+    acquire(&p->lock);
+
+    if (p->state == RUNNABLE)
+      totalNumTickets += p->num_tickets;
+    
+    release(&p->lock);
+  }
+
+  struct proc *chosenproc = 0;
+  uint64 randNum = random() % totalNumTickets;
+
+  for (int i = 0; i < NPROC; i++)
+  {
+    struct proc *p = &proc[i];
+    acquire(&p->lock);
+
+    if (p->state != RUNNABLE)
+    {
+      release(&p->lock);
+      continue;
+    }
+
+    if (chosenproc)
+      release(&chosenproc->lock);
+
+    chosenproc = p;
+    ticketCnt += p->num_tickets;
+    if (ticketCnt >= randNum)
+    {
+      chosenproc = p;
+      break;
+    }
+  }
+
+  if (chosenproc)
+  {
+    // Switch to chosen process.  It is the process's job
+    // to release its lock and then reacquire it
+    // before jumping back to us.
+    chosenproc->state = RUNNING;
+    c->proc = chosenproc;
+    swtch(&c->context, &chosenproc->context);
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    release(&chosenproc->lock);
+  }
+  return;
+}
+
+//////////////////////////////////////////////////////////////////
 
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -530,13 +621,13 @@ void fcfs(struct cpu *c)
 void scheduler(void)
 {
   struct cpu *c = mycpu();
-
   c->proc = 0;
+
   for (;;)
   {
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-    fcfs(c);
+    lotteryBased(c);
   }
 }
 
@@ -755,6 +846,22 @@ void procdump(void)
 
 void strace(int strace_mask)
 {
+  struct proc *p;
+  p = myproc();
+  if (!p)
+    return;
+
   myproc()->strace_bit = strace_mask;
   return;
+}
+
+int settickets(int numTickets)
+{
+  struct proc *p;
+  p = myproc();
+  if (!p)
+    return -1;
+
+  myproc()->num_tickets = numTickets;
+  return numTickets;
 }

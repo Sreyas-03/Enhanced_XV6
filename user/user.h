@@ -24,6 +24,7 @@ int sleep(int);
 int uptime(void);
 // int getyear(void);  // this is for testing purposes only, can be removed
 int strace(int);
+int settickets(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

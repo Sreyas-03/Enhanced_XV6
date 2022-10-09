@@ -110,3 +110,8 @@ strace:
  li a7, SYS_strace
  ecall
  ret
+.global settickets
+settickets:
+ li a7, SYS_settickets
+ ecall
+ ret

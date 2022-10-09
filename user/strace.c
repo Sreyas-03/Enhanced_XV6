@@ -2,10 +2,12 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-int main(int argc, char *argv[]){
-	if(argc < 3){
-	  fprintf(2, "\n");
-  	  exit(1);
+int main(int argc, char *argv[])
+{
+	if (argc < 3)
+	{
+		fprintf(2, "strace: insufficient arguments passed\n");
+		exit(1);
 	}
 
 	char *command = argv[2];

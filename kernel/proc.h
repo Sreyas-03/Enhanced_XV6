@@ -107,4 +107,5 @@ struct proc {
   char name[16];               // Process name (debugging)
   uint32 strace_bit;           // stores the mask when strace is invoked
   uint64 birth_time;           // stores the time of invocation of the process, (for FCFS)
+  uint64 num_tickets;           // stores the number of tickets allocated to the process (LBS)
 };

@@ -98,6 +98,19 @@ sys_strace(void)
   strace(n);
   return 0;
 }
+
+uint64
+sys_settickets(void)
+{
+  int n;
+  argint(0, &n);
+  int m = settickets(n);
+
+  if(m == n)  // correct number of tickets set
+    return 0;
+  return -1;
+}
+
 // uint64
 // sys_getyear(void) // this is for testing purpose only, can be removed
 // {

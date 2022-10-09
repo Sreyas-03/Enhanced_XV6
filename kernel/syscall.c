@@ -104,6 +104,7 @@ extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_strace(void);
+extern uint64 sys_settickets(void);
 // extern uint64 sys_getyear(void);  // this is for testing purpose only, can be removed
 
 // An array mapping syscall numbers from syscall.h
@@ -131,6 +132,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_mkdir] sys_mkdir,
     [SYS_close] sys_close,
     [SYS_strace] sys_strace,
+    [SYS_settickets] sys_settickets,
     // [SYS_getyear] sys_getyear,
 };
 
@@ -157,6 +159,8 @@ syscall_details syscall_info[] = {
     [SYS_mkdir].name = "mkdir",
     [SYS_close].name = "close",
     [SYS_strace].name = "strace",
+    [SYS_settickets].name = "settickets",
+
     [SYS_fork].numArgs = 0,
     [SYS_exit].numArgs = 1,
     [SYS_wait].numArgs = 1,
@@ -179,6 +183,7 @@ syscall_details syscall_info[] = {
     [SYS_mkdir].numArgs = 1,
     [SYS_close].numArgs = 1,
     [SYS_strace].numArgs = 1,
+    [SYS_settickets].numArgs = 1,
 };
 
 void prompt_strace(struct proc *p, int num)
