@@ -6,6 +6,28 @@
 #include "spinlock.h"
 #include "proc.h"
 
+// setting an alarm
+uint64
+sys_sigalarm(void){
+  int inteval;
+  argint(0,&inteval);
+
+  void * handler = (void*)__INT_MAX__;
+  argptr(1,handler);
+  printf("\t----inside sys \n \t<%d> <%x>\n",inteval,handler);
+  int flag = set_alarm(inteval,handler);
+  printf("\t----inside sys \n \t<%d> <%x>\n",inteval,handler);
+
+  return flag;
+}
+
+// calling and handler when alarm is set
+uint64
+sys_sigreturn(void){
+  alarm_stop();
+  return 101;
+}
+
 uint64
 sys_exit(void)
 {

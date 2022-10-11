@@ -109,3 +109,7 @@ struct proc {
   uint64 birth_time;           // stores the time of invocation of the process, (for FCFS)
   uint64 num_tickets;           // stores the number of tickets allocated to the process (LBS)
 };
+
+int alarm_stop();
+int alarm_checker();
+int set_alarm(int interval,void* handler);

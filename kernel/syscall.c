@@ -63,6 +63,18 @@ void argint(int n, int *ip)
   *ip = argraw(n);
 }
 
+// Fetch the nth pointer system call argument.
+void argptr(int n, void *ip)
+{
+  long int x = (long int)ip;
+  printf("\t---argraw : %ld\n",x);
+  
+  ip = (void*)argraw(n);
+
+  x = (long int)ip;
+  printf("\t---argraw : %ld\n",x);
+}
+
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
 // copyin/copyout will do that.
@@ -105,7 +117,8 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_strace(void);
 extern uint64 sys_settickets(void);
-// extern uint64 sys_getyear(void);  // this is for testing purpose only, can be removed
+extern uint64 sys_sigalarm(void);
+extern uint64 sys_sigreturn(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -133,7 +146,8 @@ static uint64 (*syscalls[])(void) = {
     [SYS_close] sys_close,
     [SYS_strace] sys_strace,
     [SYS_settickets] sys_settickets,
-    // [SYS_getyear] sys_getyear,
+    [SYS_sigalarm]   sys_sigalarm,
+    [SYS_sigreturn]   sys_sigreturn,
 };
 
 syscall_details syscall_info[] = {
@@ -160,6 +174,8 @@ syscall_details syscall_info[] = {
     [SYS_close].name = "close",
     [SYS_strace].name = "strace",
     [SYS_settickets].name = "settickets",
+    [SYS_sigalarm].name = "sigalarm",
+    [SYS_sigreturn].name = "sigreturn",
 
     [SYS_fork].numArgs = 0,
     [SYS_exit].numArgs = 1,
@@ -184,6 +200,8 @@ syscall_details syscall_info[] = {
     [SYS_close].numArgs = 1,
     [SYS_strace].numArgs = 1,
     [SYS_settickets].numArgs = 1,
+    [SYS_sigalarm].numArgs = 2,
+    [SYS_sigreturn].numArgs = 0,
 };
 
 void prompt_strace(struct proc *p, int num)

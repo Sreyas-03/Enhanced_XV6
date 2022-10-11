@@ -172,6 +172,7 @@ clockintr()
 {
   acquire(&tickslock);
   ticks++;
+  alarm_checker();
   wakeup(&ticks);
   release(&tickslock);
 }
