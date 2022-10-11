@@ -125,6 +125,23 @@ sys_set_priority(void)
   return 0;
 }
 
+/////////////////// IMPLEMENTED FOR SIGALARM ///////////////
+void restore(){
+  struct proc*p=myproc();
+
+  p->trapframe_copy->kernel_satp = p->trapframe->kernel_satp;
+  p->trapframe_copy->kernel_sp = p->trapframe->kernel_sp;
+  p->trapframe_copy->kernel_trap = p->trapframe->kernel_trap;
+  p->trapframe_copy->kernel_hartid = p->trapframe->kernel_hartid;
+  *(p->trapframe) = *(p->trapframe_copy);
+}
+
+uint64 sys_sigreturn(void){
+  restore();
+  myproc()->alarm_is_set = 0;
+  return 0;
+}
+///////////////////////////////////////////////////////////////
 // uint64
 // sys_getyear(void) // this is for testing purpose only, can be removed
 // {

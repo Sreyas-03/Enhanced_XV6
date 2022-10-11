@@ -15,6 +15,9 @@ struct superblock;
 void            PBS_find_times();
 int             calcDP(struct proc*);
 
+//sysproc.c
+uint64          sys_uptime(void);
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);

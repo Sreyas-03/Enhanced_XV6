@@ -79,7 +79,17 @@ usertrap(void)
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
   {
-    #ifndef FCFS  // stop the timer interrupt for FCFS
+    /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
+    p->curr_ticks+=1;
+    if(p->num_ticks>0&&p->curr_ticks>=p->num_ticks&&!p->alarm_is_set){
+      p->curr_ticks = 0;
+      p->alarm_is_set=1;
+      *(p->trapframe_copy)=*(p->trapframe);
+      p->trapframe->epc=p->sig_handler;
+    }
+    /////////////////////////////////////////////////////////////
+    
+    #if !defined(FCFS) && !defined(PBS) // stop the timer interrupt for FCFS and PBS
       yield();
     #endif
   }
@@ -156,8 +166,14 @@ kerneltrap()
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
   {
-    #ifndef FCFS  // stop the timer interrupt for FCFS
+    #if !defined(FCFS) && !defined(PBS) // stop the timer interrupt for FCFS
       yield();
+
+    /// this is only for MLFQ ///
+      if (myproc()->proc_queue < 4)
+        (myproc()->proc_queue)++;
+      myproc()->birth_time = sys_uptime();
+    ////////////////////////////
     #endif
   }
 

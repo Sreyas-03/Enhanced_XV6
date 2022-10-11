@@ -40,3 +40,7 @@ entry("uptime");
 entry("strace");
 entry("settickets");
 entry("set_priority");
+#/////////////////// IMPLEMENTED FOR SIGALARM ///////////////
+entry("sigreturn");
+entry("sigalarm"); 
+#//////////////////////////////////////////////////////////

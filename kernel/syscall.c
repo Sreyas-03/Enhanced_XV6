@@ -106,6 +106,10 @@ extern uint64 sys_close(void);
 extern uint64 sys_strace(void);
 extern uint64 sys_settickets(void);
 extern uint64 sys_set_priority(void);
+/////////////////// IMPLEMENTED FOR SIGALARM //////////////
+extern uint64 sys_sigalarm(void);
+extern uint64 sys_sigreturn(void);
+///////////////////////////////////////////////////////////
 // extern uint64 sys_getyear(void);  // this is for testing purpose only, can be removed
 
 // An array mapping syscall numbers from syscall.h
@@ -135,6 +139,11 @@ static uint64 (*syscalls[])(void) = {
     [SYS_strace] sys_strace,
     [SYS_settickets] sys_settickets,
     [SYS_set_priority] sys_set_priority,
+    /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
+    [SYS_sigalarm]   sys_sigalarm,
+    [SYS_sigreturn]   sys_sigreturn,
+    ////////////////////////////////////////////////////////
+
     // [SYS_getyear] sys_getyear,
 };
 
@@ -163,6 +172,10 @@ syscall_details syscall_info[] = {
     [SYS_strace].name = "strace",
     [SYS_settickets].name = "settickets",
     [SYS_set_priority].name = "set_priority",
+    /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
+    [SYS_sigalarm].name = "sigalarm",
+    [SYS_sigreturn].name = "sigreturn",
+    ////////////////////////////////////////////////////////
 
     [SYS_fork].numArgs = 0,
     [SYS_exit].numArgs = 1,
@@ -188,6 +201,11 @@ syscall_details syscall_info[] = {
     [SYS_strace].numArgs = 1,
     [SYS_settickets].numArgs = 1,
     [SYS_set_priority].numArgs = 2,
+    /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
+    [SYS_sigalarm].numArgs = 2,
+    [SYS_sigreturn].numArgs = 0,
+    ///////////////////////////////////////////////////////////
+    
 };
 
 void prompt_strace(struct proc *p, int num)

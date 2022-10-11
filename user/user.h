@@ -26,6 +26,10 @@ int uptime(void);
 int strace(int);
 int settickets(int);
 int set_priority(int, int);
+////////////////////IMPLEMENTED FOR SIGALARM//////////////
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);
+////////////////////////////////////////////////////////
 
 // ulib.c
 int stat(const char*, struct stat*);

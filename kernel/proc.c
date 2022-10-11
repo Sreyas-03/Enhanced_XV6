@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "queue.h"
 
 uint64 sys_uptime();
 struct cpu cpus[NCPU];
@@ -45,7 +46,6 @@ random(void)
   z3 = ((z3 & 71549U) << 7) ^ b;
   b = ((z4 << 3) ^ z4) >> 11;
   z4 = ((z4 & 326565U) << 13) ^ b;
-
   return (z1 ^ z2 ^ z3 ^ z4) / 2;
 }
 
@@ -155,6 +155,17 @@ found:
     return 0;
   }
 
+  ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
+  if((p->trapframe_copy = (struct trapframe *)kalloc()) == 0){
+    release(&p->lock);
+    return 0;
+  }
+  p->alarm_is_set=0;
+  p->num_ticks=0;
+  p->curr_ticks=0;
+  p->sig_handler=0;
+  ///////////////////////////////////////////////////////////////
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if (p->pagetable == 0)
@@ -172,7 +183,11 @@ found:
 
   p->birth_time = sys_uptime(); // sys_uptime - gives number of ticks since start
   p->num_tickets = 1;           // # tickets = 1 by default for every process
-  p->static_priority = 60;             // priority = 60 by default
+  p->static_priority = 60;      // priority = 60 by default
+  p->sleep_start = 0;
+  p->sleep_time = 0;
+  p->running_time = 0;
+  p->proc_queue = 0;
   return p;
 }
 
@@ -184,6 +199,10 @@ freeproc(struct proc *p)
 {
   if (p->trapframe)
     kfree((void *)p->trapframe);
+  /////////// implemented for sigalarm /////////////
+  if(p->trapframe_copy)
+    kfree((void*)p->trapframe_copy);
+  /////////////////////////////////////////////////
   p->trapframe = 0;
   if (p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
@@ -201,8 +220,10 @@ freeproc(struct proc *p)
   p->num_tickets = 0;
   p->static_priority = 0; // for PBS
   p->dynamic_priority = 0;
+  p->sleep_start = 0;
   p->sleep_time = 0;
   p->running_time = 0;
+  p->proc_queue = 0;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -359,8 +380,8 @@ int fork(void)
   np->state = RUNNABLE;
   release(&np->lock);
   np->strace_bit = p->strace_bit;
-  np->birth_time = p->birth_time; // check if this and equalities below this are required
-  np->num_tickets = np->num_tickets; // ensuring # tickets of parent = # tickets of child
+  np->birth_time = p->birth_time;           // check if this and equalities below this are required
+  np->num_tickets = np->num_tickets;        // ensuring # tickets of parent = # tickets of child
   np->static_priority = p->static_priority; // check if this is required
   np->dynamic_priority = p->dynamic_priority;
   np->sleep_time = p->sleep_time;
@@ -564,6 +585,8 @@ void fcfs(struct cpu *c)
 /////////////////////////////////////////////////////////////////
 
 //////////////////// LOTTERY BASED implementation /////////////////
+// The probability that a process assumes the given time schedule is the
+// the number of tickets owned by the proc
 void lotteryBased(struct cpu *c)
 {
   uint64 totalNumTickets = 0, ticketCnt = 0;
@@ -575,7 +598,7 @@ void lotteryBased(struct cpu *c)
 
     if (p->state == RUNNABLE)
       totalNumTickets += p->num_tickets;
-    
+
     release(&p->lock);
   }
 
@@ -625,13 +648,17 @@ void lotteryBased(struct cpu *c)
 //////////////////////////////////////////////////////////////////
 
 ////////////////// PRIORITY BASED SCHEDULING /////////////////////
-void priority_based(struct cpu* c)
-{
-  struct proc* chosenproc = 0;
+// save the time when the process goes ot sleep and the time when the process wakes up
+// For running time, myproc gives the currently running process, just increment the
+// running time for it whenever you increment the number of ticks
 
-  for(int i=0; i<NPROC; i++)
+void priority_based(struct cpu *c)
+{
+  struct proc *chosenproc = 0;
+
+  for (int i = 0; i < NPROC; i++)
   {
-    struct proc* p = &proc[i];
+    struct proc *p = &proc[i];
     acquire(&p->lock);
     if (p->state != RUNNABLE)
     {
@@ -640,9 +667,9 @@ void priority_based(struct cpu* c)
     }
 
     p->dynamic_priority = calcDP(p);
-    if (!chosenproc || (p->dynamic_priority < chosenproc->dynamic_priority))  // this works because of short-circuiting
+    if (!chosenproc || (p->dynamic_priority < chosenproc->dynamic_priority)) // this works because of short-circuiting
     {
-      if(chosenproc)
+      if (chosenproc)
         release(&chosenproc->lock);
 
       chosenproc = p;
@@ -673,7 +700,47 @@ void priority_based(struct cpu* c)
 //////////////////////////////////////////////////////////////////
 
 ////////////////////// MLFQ SCHEDULING ///////////////////////////
+// void mlfq(struct cpu* c) /////////////// i guess this MLFQ is breaking somewhere
+// {
+//   struct proc* chosenproc = 0;
+//   for(int i=0; i<NQUEUE; i++)
+//   {
+//     while (queue_info.num_procs[i])
+//     {
+//       struct proc* p = queue_pop(i);
+//       acquire(&p->lock);
+//       if (!p)
+//         return;
+      
+//       if (p->state == RUNNABLE)
+//       {
+//         chosenproc = p;
+//         break;
+//       }
+//       release(&p->lock);
+//     }
+//     if (chosenproc)
+//       break;      
+//   }
 
+  
+//   if (chosenproc)
+//   {
+//     // Switch to chosen process.  It is the process's job
+//     // to release its lock and then reacquire it
+//     // before jumping back to us.
+//     chosenproc->state = RUNNING;
+//     chosenproc->sleep_time = 0;
+//     c->proc = chosenproc;
+//     swtch(&c->context, &chosenproc->context);
+
+//     // Process is done running for now.
+//     // It should have changed its p->state before coming back.
+//     c->proc = 0;
+//     release(&chosenproc->lock);
+//   }
+//   return;
+// }
 
 //////////////////////////////////////////////////////////////////
 
@@ -693,7 +760,23 @@ void scheduler(void)
   {
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
+
+#ifdef RR
+    roundRobin(c);
+#endif
+
+#ifdef FCFS
+    fcfs(c);
+#endif
+
+#ifdef PBS
     priority_based(c);
+#endif
+
+#ifdef MLFQ
+    mlfq(c);
+#endif
+
   }
 }
 
@@ -770,6 +853,9 @@ void sleep(void *chan, struct spinlock *lk)
   acquire(&p->lock); // DOC: sleeplock1
   release(lk);
 
+  if (p->state != SLEEPING)        // added for PBS
+    p->sleep_start = sys_uptime(); // added for PBS
+
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
@@ -797,6 +883,10 @@ void wakeup(void *chan)
       if (p->state == SLEEPING && p->chan == chan)
       {
         p->state = RUNNABLE;
+
+        if (p->sleep_start != 0)                         // added for PBS
+          p->sleep_time = sys_uptime() - p->sleep_start; // added for PBS
+        p->sleep_start = 0;                              // added for PBS
       }
       release(&p->lock);
     }
@@ -931,25 +1021,25 @@ int settickets(int numTickets)
   return numTickets;
 }
 
-int calcDP(struct proc* p)
+int calcDP(struct proc *p)
 {
   int sleep_time = p->sleep_time;
   int running_time = p->running_time;
   int SP = p->static_priority;
 
   if ((sleep_time + running_time) == 0)
-    return 5; // assume noraml niceness
+    return 5; // assume normal niceness
 
-  int niceness = 10* ((int)sleep_time/(sleep_time + running_time));
-  int DP = ((SP - niceness + 5) < 100) ?  (SP - niceness + 5) : 100;
+  int niceness = 10 * ((int)sleep_time / (sleep_time + running_time));
+  int DP = ((SP - niceness + 5) < 100) ? (SP - niceness + 5) : 100;
 
-  return (DP>0) ? DP:0;
+  return (DP > 0) ? DP : 0;
 }
 
 int set_priority(int new_priority, int pid)
 {
-  struct proc* chosen = 0;
-  for(int i=0; i<NPROC; i++)
+  struct proc *chosen = 0;
+  for (int i = 0; i < NPROC; i++)
   {
     struct proc *p = &proc[i];
     acquire(&p->lock);
@@ -960,9 +1050,9 @@ int set_priority(int new_priority, int pid)
     }
     release(&p->lock);
   }
-  
+
   int prevSP = -1;
-  if(chosen)
+  if (chosen)
   {
     prevSP = chosen->static_priority;
     chosen->static_priority = new_priority;
@@ -973,26 +1063,32 @@ int set_priority(int new_priority, int pid)
   {
     printf("Given pid does not exist\n");
   }
+  yield(); // reschedule once set_priority is done
   return prevSP;
 }
 
 void PBS_find_times()
 {
-  struct proc* p;
-  for(int i=0; i<NPROC; i++)
-  {
-    p = &proc[i];
-    acquire(&p->lock);
+  // struct proc *p;
+  // p = myproc();
+  // if (!p)
+  //   return;
 
-    if (p->state == RUNNING)
-    {
-      p->sleep_time = 0;
-      (p->running_time)++;
-    }
-    else if (p->state == SLEEPING)
-      (p->sleep_time)++;
-
-    release(&p->lock);
-  }
+  // (myproc()->running_time)++;
   return;
 }
+
+  ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
+uint64 sys_sigalarm(void)
+{
+  int this_ticks;
+  argint(0, &this_ticks);
+  uint64 handler;
+  argaddr(1, &handler);
+  myproc()->sig_handler = 0;
+  myproc()->num_ticks = this_ticks;
+  myproc()->curr_ticks = 0;
+  myproc()->sig_handler = handler;
+  return 0; 
+}
+//////////////////////////////////////////////

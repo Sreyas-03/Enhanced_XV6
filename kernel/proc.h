@@ -109,7 +109,23 @@ struct proc {
   uint64 birth_time;           // stores the time of invocation of the process, (for FCFS)
   uint64 num_tickets;          // stores the number of tickets allocated to the process (LBS)
   uint16 static_priority;      // stores the static priority of a proc. For PBS
-  uint64 sleep_time;           // stores the tick number when it was put to sleep
-  uint64 running_time;         // stores the tick number when it started running
+  
+  uint64 sleep_time;           // stores the # ticks when it was sleeping
+  uint64 sleep_start;          // stores the tick whn it was put to sleep
+  uint64 running_time;         // stores the # ticks when it was running
   uint16 dynamic_priority;     // stores the dynamic priority for PBS
+ 
+  uint16 proc_queue;           // stores the priority queue to which the proc belongs. MLFQ
+  uint64 queue_wait_time;      // stores the wait time in the queue. MLFQ
+  uint16 in_queue;             // flag telling whether its a part of a queue. MLFQ
+  
+  /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
+  
+  uint16 alarm_is_set;         // stores is alarm is set
+  uint32 curr_ticks;            // stores the number of ticks passed
+  uint64 sig_handler;              // stores the funciton pointer
+  uint32 num_ticks;                // duratoin of the alarm
+  struct trapframe *trapframe_copy;   // stores trapframe as signal is sent
+  
+  /////////////////////////////////////////////////////////////
 };
