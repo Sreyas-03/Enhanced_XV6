@@ -112,4 +112,5 @@ struct proc {
 
 int alarm_stop();
 int alarm_checker();
-int set_alarm(int interval,void* handler);
+int is_alarm_set();
+int set_alarm(int interval,uint64 handler);

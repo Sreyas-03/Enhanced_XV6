@@ -25,7 +25,7 @@ int uptime(void);
 // int getyear(void);  // this is for testing purposes only, can be removed
 int strace(int);
 int settickets(int);
-int sigalarm(int ,int);
+int sigalarm(int ,void(*handler)());
 int sigreturn();
 
 // ulib.c

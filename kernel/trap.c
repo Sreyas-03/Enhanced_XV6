@@ -172,7 +172,10 @@ clockintr()
 {
   acquire(&tickslock);
   ticks++;
-  alarm_checker();
+  // if(is_alarm_set()){
+  //   printf("|");
+  //   alarm_checker();
+  // }
   wakeup(&ticks);
   release(&tickslock);
 }

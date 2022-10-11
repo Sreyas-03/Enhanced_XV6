@@ -14,7 +14,7 @@ int main(){
     long int x = (long int)h1_ptr;
     printf("%x(%x) -> %d\n",h1_ptr,h1,x);
 
-    printf("> alarm %d \n",sigalarm(100000,x));
+    printf("> alarm %d \n",sigalarm(100000,h1_ptr));
     printf("> return %d \n",sigreturn());
     return 0;
 }
