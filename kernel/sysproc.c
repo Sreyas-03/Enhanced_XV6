@@ -128,20 +128,40 @@ sys_set_priority(void)
 /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
 void restore(){
   struct proc*p=myproc();
-
+  acquire(&p->lock);
   p->trapframe_copy->kernel_satp = p->trapframe->kernel_satp;
   p->trapframe_copy->kernel_sp = p->trapframe->kernel_sp;
   p->trapframe_copy->kernel_trap = p->trapframe->kernel_trap;
   p->trapframe_copy->kernel_hartid = p->trapframe->kernel_hartid;
   *(p->trapframe) = *(p->trapframe_copy);
+  release(&p->lock);
 }
 
 uint64 sys_sigreturn(void){
   restore();
   myproc()->alarm_is_set = 0;
-  return 0;
+  return myproc()->trapframe->a0;
 }
 ///////////////////////////////////////////////////////////////
+//////////////////// IMPLEMENTED FOR SHCED TEST //////////////
+uint64
+sys_waitx(void)
+{
+  uint64 addr, addr1, addr2;
+  uint wtime, rtime;
+  argaddr(0, &addr);
+  argaddr(1, &addr1); // user virtual memory
+  argaddr(2, &addr2);
+  int ret = waitx(addr, &wtime, &rtime);
+  struct proc* p = myproc();
+  if (copyout(p->pagetable, addr1,(char*)&wtime, sizeof(int)) < 0)
+    return -1;
+  if (copyout(p->pagetable, addr2,(char*)&rtime, sizeof(int)) < 0)
+    return -1;
+  return ret;
+}
+////////////////////////////////////////////////////////////////
+
 // uint64
 // sys_getyear(void) // this is for testing purpose only, can be removed
 // {

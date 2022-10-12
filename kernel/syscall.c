@@ -110,6 +110,9 @@ extern uint64 sys_set_priority(void);
 extern uint64 sys_sigalarm(void);
 extern uint64 sys_sigreturn(void);
 ///////////////////////////////////////////////////////////
+/////////////////// IMPLEMENTED FOR SCHED TEST //////////////
+extern uint64 sys_waitx(void);
+///////////////////////////////////////////////////////////
 // extern uint64 sys_getyear(void);  // this is for testing purpose only, can be removed
 
 // An array mapping syscall numbers from syscall.h
@@ -143,6 +146,9 @@ static uint64 (*syscalls[])(void) = {
     [SYS_sigalarm]   sys_sigalarm,
     [SYS_sigreturn]   sys_sigreturn,
     ////////////////////////////////////////////////////////
+    ////////////////// IMPLEMENTED FOR SCHED TEST ////////////
+    [SYS_waitx] sys_waitx
+    //////////////////////////////////////////////////////////
 
     // [SYS_getyear] sys_getyear,
 };
@@ -176,6 +182,11 @@ syscall_details syscall_info[] = {
     [SYS_sigalarm].name = "sigalarm",
     [SYS_sigreturn].name = "sigreturn",
     ////////////////////////////////////////////////////////
+
+    //////////////////// IMPLEMENTED FOR SCHED TEST ////////////////
+    [SYS_waitx].name = "waitx",
+    [SYS_waitx].numArgs = 0,
+    ////////////////////////////////////////////////////////////////
 
     [SYS_fork].numArgs = 0,
     [SYS_exit].numArgs = 1,

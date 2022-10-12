@@ -181,6 +181,7 @@ test3()
 
   if(a0 != 0xac)
     printf("test3 failed: register a0 changed\n");
+
   else
     printf("test3 passed\n");
 }

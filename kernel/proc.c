@@ -148,23 +148,20 @@ found:
   p->state = USED;
 
   // Allocate a trapframe page.
+  ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
+  if((p->trapframe_copy = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  ///////////////////////////////////////////////////////////////
+
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
   {
     freeproc(p);
     release(&p->lock);
     return 0;
   }
-
-  ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
-  if((p->trapframe_copy = (struct trapframe *)kalloc()) == 0){
-    release(&p->lock);
-    return 0;
-  }
-  p->alarm_is_set=0;
-  p->num_ticks=0;
-  p->curr_ticks=0;
-  p->sig_handler=0;
-  ///////////////////////////////////////////////////////////////
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -181,6 +178,13 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  /////////////////////// IMPLEMENTED FOR SCHEDULER TESTING /////////////////
+  p->rtime = 0;
+  p->etime = 0;
+  p->ctime = sys_uptime();
+
+  //////////////////////////////////////////////////////////////////////////
+
   p->birth_time = sys_uptime(); // sys_uptime - gives number of ticks since start
   p->num_tickets = 1;           // # tickets = 1 by default for every process
   p->static_priority = 60;      // priority = 60 by default
@@ -188,6 +192,13 @@ found:
   p->sleep_time = 0;
   p->running_time = 0;
   p->proc_queue = 0;
+
+  ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
+  p->alarm_is_set=0;  // initialising to 0 as alarm is not set yet
+  p->num_ticks=0;     // number of ticks to pass = 0 (no alarm)
+  p->curr_ticks=0;    // number of ticks passed = 0 (its just initialized)
+  p->sig_handler=0;   // there is no handler associated to teh alarm handler (copyin/copyout handles invalid addresses)
+  ///////////////////////////////////////////////////////////
   return p;
 }
 
@@ -200,7 +211,7 @@ freeproc(struct proc *p)
   if (p->trapframe)
     kfree((void *)p->trapframe);
   /////////// implemented for sigalarm /////////////
-  if(p->trapframe_copy)
+  if(p->trapframe_copy)   // freeing the allocated memory
     kfree((void*)p->trapframe_copy);
   /////////////////////////////////////////////////
   p->trapframe = 0;
@@ -443,6 +454,9 @@ void exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  //////////////// IMPLEMENTED FOR SCHEDULER TESTING ////////////////////////
+  p->etime = sys_uptime();
+  ///////////////////////////////////////////////////////////////////////
 
   release(&wait_lock);
 
@@ -1092,3 +1106,68 @@ uint64 sys_sigalarm(void)
   return 0; 
 }
 //////////////////////////////////////////////
+
+////////////// IMPLEMENTED FOR SCHEDULER TESTING //////////////////////
+int
+waitx(uint64 addr, uint* wtime, uint* rtime)
+{
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&np->lock);
+
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          // Found one.
+          pid = np->pid;
+          *rtime = np->rtime;
+          *wtime = np->etime - np->ctime - np->rtime;
+          if(addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
+                                  sizeof(np->xstate)) < 0) {
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          freeproc(np);
+          release(&np->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || p->killed){
+      release(&wait_lock);
+      return -1;
+    }
+
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
+  return 0;
+}
+
+void
+update_time()
+{
+  struct proc* p;
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state == RUNNING) {
+      p->rtime++;
+    }
+    release(&p->lock); 
+  }
+}
+////////////////////////////////////////////////////////////////

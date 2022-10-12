@@ -31,6 +31,10 @@ int sigalarm(int ticks, void (*handler)());
 int sigreturn(void);
 ////////////////////////////////////////////////////////
 
+///////// IMPLEMENTED FOR SCHED TEST //////////////////////
+int waitx(int*, int* /*wtime*/, int* /*rtime*/);
+////////////////////////////////////////////////////////////
+
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

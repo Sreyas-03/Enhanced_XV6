@@ -139,6 +139,8 @@ UPROGS=\
 	$U/_settickets\
 	$U/_set_priority\
 	$U/_alarmtest\
+	$U/_schedulertest\
+	$U/_time
 
 
 fs.img: mkfs/mkfs README $(UPROGS)

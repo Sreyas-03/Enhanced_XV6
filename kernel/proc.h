@@ -120,12 +120,18 @@ struct proc {
   uint16 in_queue;             // flag telling whether its a part of a queue. MLFQ
   
   /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
-  
-  uint16 alarm_is_set;         // stores is alarm is set
+  struct trapframe* trapframe_copy;   // stores trapframe as signal is sent
+  // This ensures that the value of the registers are stored when alarm occurs
+
   uint32 curr_ticks;            // stores the number of ticks passed
-  uint64 sig_handler;              // stores the funciton pointer
-  uint32 num_ticks;                // duratoin of the alarm
-  struct trapframe *trapframe_copy;   // stores trapframe as signal is sent
-  
+  uint64 sig_handler;           // stores the funciton pointer
+  uint16 alarm_is_set;          // stores is alarm is set
+  uint32 num_ticks;             // duration of the alarm
   /////////////////////////////////////////////////////////////
+
+  //////////////////// IMPLEMENTED FOR SCHEDULER TESTING //////////////
+  uint rtime;                   // How long the process ran for
+  uint ctime;                   // When was the process created 
+  uint etime;                   // When did the process exited
+  /////////////////////////////////////////////////////////////////////
 };
