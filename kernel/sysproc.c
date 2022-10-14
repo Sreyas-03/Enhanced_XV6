@@ -12,7 +12,7 @@ sys_exit(void)
   int n;
   argint(0, &n);
   exit(n);
-  return 0;  // not reached
+  return 0; // not reached
 }
 
 uint64
@@ -43,7 +43,7 @@ sys_sbrk(void)
 
   argint(0, &n);
   addr = myproc()->sz;
-  if(growproc(n) < 0)
+  if (growproc(n) < 0)
     return -1;
   return addr;
 }
@@ -57,8 +57,10 @@ sys_sleep(void)
   argint(0, &n);
   acquire(&tickslock);
   ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(killed(myproc())){
+  while (ticks - ticks0 < n)
+  {
+    if (killed(myproc()))
+    {
       release(&tickslock);
       return -1;
     }
@@ -106,11 +108,10 @@ sys_settickets(void)
   argint(0, &n);
   int m = settickets(n);
 
-  if(m == n)  // correct number of tickets set
+  if (m == n) // correct number of tickets set
     return 0;
   return -1;
 }
-
 
 uint64
 sys_set_priority(void)
@@ -126,8 +127,9 @@ sys_set_priority(void)
 }
 
 /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
-void restore(){
-  struct proc*p=myproc();
+void restore()
+{
+  struct proc *p = myproc();
   acquire(&p->lock);
   p->trapframe_copy->kernel_satp = p->trapframe->kernel_satp;
   p->trapframe_copy->kernel_sp = p->trapframe->kernel_sp;
@@ -137,10 +139,11 @@ void restore(){
   release(&p->lock);
 }
 
-uint64 sys_sigreturn(void){
+uint64 sys_sigreturn(void)
+{
   restore();
   myproc()->alarm_is_set = 0;
-  return myproc()->trapframe->a0;
+  return myproc()->trapframe->a0;   // this is returned as a0 stores return value, and a0 value should remain the same
 }
 ///////////////////////////////////////////////////////////////
 //////////////////// IMPLEMENTED FOR SHCED TEST //////////////
@@ -153,10 +156,10 @@ sys_waitx(void)
   argaddr(1, &addr1); // user virtual memory
   argaddr(2, &addr2);
   int ret = waitx(addr, &wtime, &rtime);
-  struct proc* p = myproc();
-  if (copyout(p->pagetable, addr1,(char*)&wtime, sizeof(int)) < 0)
+  struct proc *p = myproc();
+  if (copyout(p->pagetable, addr1, (char *)&wtime, sizeof(int)) < 0)
     return -1;
-  if (copyout(p->pagetable, addr2,(char*)&rtime, sizeof(int)) < 0)
+  if (copyout(p->pagetable, addr2, (char *)&rtime, sizeof(int)) < 0)
     return -1;
   return ret;
 }

@@ -21,12 +21,20 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
+
+  //////// COW ////////
+  int count[PHYSTOP/PGSIZE]; // ref cnts
+  //////////////////////
+
 } kmem;
 
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  //////// COW ////////
+  memset(kmem.count, 0, sizeof(kmem.count) / sizeof(int));
+  //////////////////////
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -52,14 +60,20 @@ kfree(void *pa)
     panic("kfree");
 
   // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
+  // memset(pa, 1, PGSIZE);
+  // r = (struct run*)pa;
 
-  r = (struct run*)pa;
-
+  ////////////////// COW //////////////////////
   acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
+  if((--kmem.count[REFINDEX(pa)]) <= 0)
+  {
+    memset(pa, 1, PGSIZE);
+    r = (struct run*)pa;
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+  }
   release(&kmem.lock);
+  //////////////////////////////////////////
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -72,11 +86,59 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
+//////////////// COW ///////////////////////////////
   if(r)
+  {
     kmem.freelist = r->next;
+    kmem.count[REFINDEX(r)] = 1;
+  }
+  /////////////////////////////////////////////////
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+//////////////// COW ///////////////////////////////
+void incref(void *pa) {
+  acquire(&kmem.lock);
+  kmem.count[REFINDEX(pa)] += 1;
+  release(&kmem.lock);
+}
+
+int pgfault_handler(pagetable_t pagetable, uint64 va) {
+  if(va >= MAXVA) return -1;
+
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0) 
+    return -1;
+  if((*pte & PTE_V) == 0)
+    return -1;
+  if((*pte & PTE_U) == 0)
+    return -1;
+
+  // check if refcnt is 1. unset cow page if refcnt = 1, alloc a new page otherwise
+  uint64 mem, pa;
+  pa = (uint64)PTE2PA(*pte);
+  acquire(&kmem.lock);
+  if(kmem.count[REFINDEX(pa)] == 1) {
+    *pte &= ~PTE_C;
+    *pte |= PTE_W;
+    release(&kmem.lock);
+    return 0;
+  }
+  release(&kmem.lock);
+
+  if((mem = (uint64)kalloc()) == 0) return -1;
+  memmove((void *)mem, (void *)pa, PGSIZE); // copy contents
+  kfree((void *)pa); // decrease reference, and free pa if necessary
+
+  // modify mappings and unset cow page
+  *pte = PA2PTE(mem) | PTE_FLAGS(*pte); 
+  *pte &= ~PTE_C; // unset PTE_C
+  *pte |= PTE_W;  // set PTE_W
+
+  return 0;
+}
+///////////////////////////////////////////////

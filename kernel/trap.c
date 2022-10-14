@@ -65,6 +65,22 @@ void usertrap(void)
 
     syscall();
   }
+  ///////////////// COW ///////////////////////
+
+  else if (r_scause() == 13 || r_scause() == 15)
+  {
+    uint64 va = r_stval();
+    if (va >= MAXVA)
+      setkilled(p);
+    else if (va >= p->sz)
+      setkilled(p);
+    else if (va < p->trapframe->sp && va >= PGROUNDDOWN(p->trapframe->sp) - PGSIZE)
+      setkilled(p);
+    else if (pgfault_handler(p->pagetable, va) != 0)
+      setkilled(p);
+  }
+  ////////////////////////////////////////////////////////
+
   else if ((which_dev = devintr()) != 0)
   {
     // ok
@@ -136,37 +152,38 @@ void usertrap(void)
     yield();
 #endif
   }
-  #if defined(MLFQ)
-    ////////////////// this is due to timer interrup ///
-    if(which_dev == 2)
+#if defined(MLFQ)
+  ////////////////// this is due to timer interrup ///
+  if (which_dev == 2)
+  {
+    struct proc *p;
+    p = myproc();
+    if (p && p->state == RUNNING)
     {
-      struct proc* p;
-      p = myproc();
-      if(p && p->state == RUNNING)
+      p->queue_wait_time++;
+      for (int i = 0; i < p->proc_queue; i++)
       {
-        p->queue_wait_time++;
-        for(int i=0; i < p->proc_queue; i++){
-          if(queue_info.num_procs[i])
-          {
-            p->queue_wait_time = 0;
-            queue_insert(p, p->proc_queue);
-            yield();
-          }
-        }
-
-        if(queue_info.max_ticks[p->proc_queue] <= p->queue_wait_time)
+        if (queue_info.num_procs[i])
         {
           p->queue_wait_time = 0;
-          int newQueue = p->proc_queue+1;
-          newQueue = (newQueue>4)?4:newQueue;
-          queue_insert(p, newQueue);
+          queue_insert(p, p->proc_queue);
           yield();
         }
-        p->queue_wait_time++;
       }
-    }
 
-  #endif
+      if (queue_info.max_ticks[p->proc_queue] <= p->queue_wait_time)
+      {
+        p->queue_wait_time = 0;
+        int newQueue = p->proc_queue + 1;
+        newQueue = (newQueue > 4) ? 4 : newQueue;
+        queue_insert(p, newQueue);
+        yield();
+      }
+      p->queue_wait_time++;
+    }
+  }
+
+#endif
   usertrapret();
 }
 
@@ -251,32 +268,32 @@ void kerneltrap()
 ////////////////////////////
 #endif
   }
-    #if defined(MLFQ)
+#if defined(MLFQ)
 
-    if(which_dev == 2)
+  if (which_dev == 2)
+  {
+    struct proc *p;
+    p = myproc();
+    if (p && p->state == RUNNING)
     {
-      struct proc* p;
-      p = myproc();
-      if(p && p->state == RUNNING)
+      p->queue_wait_time++;
+      for (int i = 0; i < p->proc_queue; i++)
       {
-        p->queue_wait_time++;
-        for(int i=0; i < p->proc_queue; i++)
-        {
-          if(queue_info.num_procs[i])
-          {
-            p->queue_wait_time = 0;
-            yield();
-          }
-        }
-
-        if(queue_info.max_ticks[p->proc_queue] <= p->queue_wait_time)
+        if (queue_info.num_procs[i])
         {
           p->queue_wait_time = 0;
           yield();
         }
       }
+
+      if (queue_info.max_ticks[p->proc_queue] <= p->queue_wait_time)
+      {
+        p->queue_wait_time = 0;
+        yield();
+      }
     }
-    #endif
+  }
+#endif
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);
@@ -291,7 +308,7 @@ void clockintr()
   update_time();
   ////////////////////////////////////////////////////////////////
   mlfq_update_time(); // implemented for MLFQ
-  PBS_find_times(); // added for PBS
+  PBS_find_times();   // added for PBS
   wakeup(&ticks);
   release(&tickslock);
 }

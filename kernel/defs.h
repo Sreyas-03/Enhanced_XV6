@@ -21,6 +21,10 @@ extern struct queue_info queue_info;
 void mlfq_update_time();
 void remove_queue(struct proc*, int);
 
+// KALLOC.C
+int             pgfault_handler(pagetable_t, uint64);
+void            incref(void *);
+
 //sysproc.c
 uint64          sys_uptime(void);
 
