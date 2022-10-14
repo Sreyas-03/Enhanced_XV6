@@ -15,6 +15,12 @@ struct superblock;
 void            PBS_find_times();
 int             calcDP(struct proc*);
 
+// queue.h
+struct queue_info;
+extern struct queue_info queue_info;
+void mlfq_update_time();
+void remove_queue(struct proc*, int);
+
 //sysproc.c
 uint64          sys_uptime(void);
 
@@ -119,14 +125,19 @@ void            procdump(void);
 void            update_time(void);
 
 /////////////////// CREATED SYSCALLS//////////////////////
-// strace.c
-void            strace(int);
+// trace.c
+void            trace(int);
 
 // settickets.c
 int             settickets(int);
 
 // set_priority.c
 int             set_priority(int, int);
+///////////////////// IMPLEMENTED FOR MLFQ ///////////////
+void            update_time();
+void 			queue_init(void);
+void            queue_insert(struct proc*, int); 
+struct proc*    queue_pop(int);
 
 //////////////////////////////////////////////////////////
 

@@ -2,12 +2,14 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
+#include "kernel/param.h"
 
 #define NFORK 10
 #define IO 5
 
 int main()
 {
+  printf("SCHEDULER = %s\n", "LBS");
   int n, pid;
   int wtime, rtime;
   int twtime = 0, trtime = 0;
@@ -38,11 +40,19 @@ int main()
     else
     {
 #ifdef PBS
+      #if defined(DEBUG)|| defined(DEBUG_setpriority)
+        printf("\nn = %d", n);
+      #endif
       set_priority(60 - IO + n, pid); // Will only matter for PBS, set lower priority for IO bound processes
 #endif
 #ifdef LBS
     if (n%2==0)
+    {
+      #if defined(DEBUG)|| defined(DEBUG_settickets)
+        printf("n = %d\n", n);
+      #endif
       settickets(10);
+    }
 #endif
     }
   }

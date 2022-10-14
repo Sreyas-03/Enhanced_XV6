@@ -3,6 +3,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "queue.h"
 
 volatile static int started = 0;
 
@@ -39,6 +40,10 @@ main()
     kvminithart();    // turn on paging
     trapinithart();   // install kernel trap vector
     plicinithart();   // ask PLIC for device interrupts
+
+    ///////////// IMPLEMENTED FOR MLFQ ///////////////////////
+    queue_init();
+    //////////////////////////////////////////////////////////
   }
 
   scheduler();        

@@ -91,11 +91,11 @@ sys_uptime(void)
 }
 
 uint64
-sys_strace(void)
+sys_trace(void)
 {
   int n;
   argint(0, &n);
-  strace(n);
+  trace(n);
   return 0;
 }
 

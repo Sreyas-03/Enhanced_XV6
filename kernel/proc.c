@@ -149,7 +149,8 @@ found:
 
   // Allocate a trapframe page.
   ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
-  if((p->trapframe_copy = (struct trapframe *)kalloc()) == 0){
+  if ((p->trapframe_copy = (struct trapframe *)kalloc()) == 0)
+  {
     freeproc(p);
     release(&p->lock);
     return 0;
@@ -181,23 +182,39 @@ found:
   /////////////////////// IMPLEMENTED FOR SCHEDULER TESTING /////////////////
   p->rtime = 0;
   p->etime = 0;
-  p->ctime = sys_uptime();
+  p->ctime = ticks;
 
   //////////////////////////////////////////////////////////////////////////
 
+  //////////////////// IMPLEMENTED FOR MLFQ ///////////////////////////////
+  p->in_queue = 0;
+  p->queue_wait_time = 0;
+  p->proc_queue = 0;
+  p->cur_wait_time = 0;
+  p->queue_enter_flag = 0;
+  for(int i=0; i<5; i++)
+    p->queue_time[i] = 0;
+  ////////////////////////////////////////////////////////////////////////
+
   p->birth_time = sys_uptime(); // sys_uptime - gives number of ticks since start
-  p->num_tickets = 1;           // # tickets = 1 by default for every process
-  p->static_priority = 60;      // priority = 60 by default
+#ifdef DEBUG
+  printf("birth time = ");
+  printf("%d\n", (int)p->birth_time);
+#endif
+
+  p->num_tickets = 1;      // # tickets = 1 by default for every process
+  p->static_priority = 60; // priority = 60 by default
   p->sleep_start = 0;
   p->sleep_time = 0;
   p->running_time = 0;
   p->proc_queue = 0;
+  p->dynamic_priority = 0;
 
   ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
-  p->alarm_is_set=0;  // initialising to 0 as alarm is not set yet
-  p->num_ticks=0;     // number of ticks to pass = 0 (no alarm)
-  p->curr_ticks=0;    // number of ticks passed = 0 (its just initialized)
-  p->sig_handler=0;   // there is no handler associated to teh alarm handler (copyin/copyout handles invalid addresses)
+  p->alarm_is_set = 0; // initialising to 0 as alarm is not set yet
+  p->num_ticks = 0;    // number of ticks to pass = 0 (no alarm)
+  p->curr_ticks = 0;   // number of ticks passed = 0 (its just initialized)
+  p->sig_handler = 0;  // there is no handler associated to teh alarm handler (copyin/copyout handles invalid addresses)
   ///////////////////////////////////////////////////////////
   return p;
 }
@@ -211,8 +228,8 @@ freeproc(struct proc *p)
   if (p->trapframe)
     kfree((void *)p->trapframe);
   /////////// implemented for sigalarm /////////////
-  if(p->trapframe_copy)   // freeing the allocated memory
-    kfree((void*)p->trapframe_copy);
+  if (p->trapframe_copy) // freeing the allocated memory
+    kfree((void *)p->trapframe_copy);
   /////////////////////////////////////////////////
   p->trapframe = 0;
   if (p->pagetable)
@@ -226,15 +243,23 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
-  p->strace_bit = 0;
-  p->birth_time = __INT_MAX__;
-  p->num_tickets = 0;
+  p->trace_bit = 0;
+  // p->birth_time = __INT_MAX__;
+  // p->num_tickets = 0;
   p->static_priority = 0; // for PBS
   p->dynamic_priority = 0;
   p->sleep_start = 0;
   p->sleep_time = 0;
   p->running_time = 0;
   p->proc_queue = 0;
+
+  ////////////////// IMPLEMENTED FOR MLFQ ////////////////////////
+  p->etime = 0;
+  p->running_time = 0;
+  p->sleep_time = 0;
+  p->sched_ct = 0;
+  ////////////////////////////////////////////////////////////////
+
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -390,7 +415,7 @@ int fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-  np->strace_bit = p->strace_bit;
+  np->trace_bit = p->trace_bit;
   np->birth_time = p->birth_time;           // check if this and equalities below this are required
   np->num_tickets = np->num_tickets;        // ensuring # tickets of parent = # tickets of child
   np->static_priority = p->static_priority; // check if this is required
@@ -455,7 +480,7 @@ void exit(int status)
   p->xstate = status;
   p->state = ZOMBIE;
   //////////////// IMPLEMENTED FOR SCHEDULER TESTING ////////////////////////
-  p->etime = sys_uptime();
+  p->etime = ticks;
   ///////////////////////////////////////////////////////////////////////
 
   release(&wait_lock);
@@ -559,9 +584,14 @@ void fcfs(struct cpu *c)
     acquire(&p->lock);
 
     if (oldestproc)
-      oldesttime = oldestproc->birth_time; // save the time of the oldest proc
+    {
+      oldesttime = oldestproc->ctime; // save the time of the oldest proc
+#ifdef DEBUG
+      printf("birth time: %d\n", (int)oldestproc->ctime);
+#endif
+    }
 
-    if ((oldesttime > p->birth_time) || !oldestproc)
+    if ((oldesttime > p->ctime) || !oldestproc)
     {
       if (p->state == RUNNABLE)
       {
@@ -604,7 +634,9 @@ void fcfs(struct cpu *c)
 void lotteryBased(struct cpu *c)
 {
   uint64 totalNumTickets = 0, ticketCnt = 0;
-
+  #ifdef DEBUG_settickets
+    printf("LBS\n");
+  #endif
   for (int i = 0; i < NPROC; i++)
   {
     struct proc *p = &proc[i];
@@ -714,47 +746,39 @@ void priority_based(struct cpu *c)
 //////////////////////////////////////////////////////////////////
 
 ////////////////////// MLFQ SCHEDULING ///////////////////////////
-// void mlfq(struct cpu* c) /////////////// i guess this MLFQ is breaking somewhere
-// {
-//   struct proc* chosenproc = 0;
-//   for(int i=0; i<NQUEUE; i++)
-//   {
-//     while (queue_info.num_procs[i])
-//     {
-//       struct proc* p = queue_pop(i);
-//       acquire(&p->lock);
-//       if (!p)
-//         return;
-      
-//       if (p->state == RUNNABLE)
-//       {
-//         chosenproc = p;
-//         break;
-//       }
-//       release(&p->lock);
-//     }
-//     if (chosenproc)
-//       break;      
-//   }
+  void mlfq(struct cpu *c)
+  {
 
-  
-//   if (chosenproc)
-//   {
-//     // Switch to chosen process.  It is the process's job
-//     // to release its lock and then reacquire it
-//     // before jumping back to us.
-//     chosenproc->state = RUNNING;
-//     chosenproc->sleep_time = 0;
-//     c->proc = chosenproc;
-//     swtch(&c->context, &chosenproc->context);
+    for(struct proc *p = proc; p < &proc[NPROC]; p++){
+      if(p->in_queue && p->cur_wait_time > AGING_TICKS && p->proc_queue > 0){
+        remove_queue(p, p->proc_queue);
+        queue_insert(p, p->proc_queue-1);
+      }
+    }
 
-//     // Process is done running for now.
-//     // It should have changed its p->state before coming back.
-//     c->proc = 0;
-//     release(&chosenproc->lock);
-//   }
-//   return;
-// }
+    for(struct proc *p = proc; p < &proc[NPROC]; p++){
+      if(p->state == RUNNABLE && !p->in_queue){
+        int to = (p->proc_queue == 4) ? 4 : p->proc_queue;
+        queue_insert(p, to);
+      }
+    }
+    for(int qpos = 0; qpos < 5; qpos++){
+      while(queue_info.num_procs[qpos] > 0){
+        struct proc *bestproc = queue_pop(qpos);
+        bestproc->state = RUNNING;
+        bestproc->sched_ct++;
+        bestproc->cur_wait_time = 0;
+        acquire(&bestproc->lock);
+
+        c->proc = bestproc;
+        swtch(&c->context, &bestproc->context);
+        c->proc = 0;
+        
+        release(&bestproc->lock);
+        return;
+      }
+    }
+  }
 
 //////////////////////////////////////////////////////////////////
 
@@ -772,25 +796,33 @@ void scheduler(void)
 
   for (;;)
   {
+    struct proc *p;
+
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-#ifdef RR
-    roundRobin(c);
-#endif
+    for (p = proc; p < &proc[NPROC]; p++)
+    {
+    #ifdef RR
+          roundRobin(c);
+    #endif
 
-#ifdef FCFS
-    fcfs(c);
-#endif
+    #ifdef FCFS
+          fcfs(c);
+    #endif
 
-#ifdef PBS
-    priority_based(c);
-#endif
+    #ifdef LBS
+          lotteryBased(c);
+    #endif
 
-#ifdef MLFQ
-    mlfq(c);
-#endif
+    #ifdef PBS
+          priority_based(c);
+    #endif
 
+    #ifdef MLFQ
+          mlfq(c);
+    #endif
+    }
   }
 }
 
@@ -867,8 +899,8 @@ void sleep(void *chan, struct spinlock *lk)
   acquire(&p->lock); // DOC: sleeplock1
   release(lk);
 
-  if (p->state != SLEEPING)        // added for PBS
-    p->sleep_start = sys_uptime(); // added for PBS
+  if (p->state != SLEEPING) // added for PBS
+    p->sleep_start = ticks; // added for PBS
 
   // Go to sleep.
   p->chan = chan;
@@ -898,9 +930,9 @@ void wakeup(void *chan)
       {
         p->state = RUNNABLE;
 
-        if (p->sleep_start != 0)                         // added for PBS
-          p->sleep_time = sys_uptime() - p->sleep_start; // added for PBS
-        p->sleep_start = 0;                              // added for PBS
+        if (p->sleep_start != 0)                  // added for PBS
+          p->sleep_time = ticks - p->sleep_start; // added for PBS
+        p->sleep_start = 0;                       // added for PBS
       }
       release(&p->lock);
     }
@@ -1008,19 +1040,21 @@ void procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
-    printf("\n");
+    printf("pid = %d\nstate = %s\nname = %s\nDP = %d\n", p->pid, state, p->name, (int)p->dynamic_priority);
+    printf("birth time = %d\nstatic priority = %d\n", p->ctime, (int)p->static_priority);
+    printf("tickets = %d\n", p->num_tickets);
+    printf("===========================================\n\n");
   }
 }
 
-void strace(int strace_mask)
+void trace(int trace_mask)
 {
   struct proc *p;
   p = myproc();
   if (!p)
     return;
 
-  myproc()->strace_bit = strace_mask;
+  myproc()->trace_bit = trace_mask;
   return;
 }
 
@@ -1030,8 +1064,13 @@ int settickets(int numTickets)
   p = myproc();
   if (!p)
     return -1;
-
   myproc()->num_tickets = numTickets;
+
+#if defined(DEBUG) || defined(DEBUG_settickets)
+  printf("Entered settickets!\n");
+  printf("tickets = %d\n", (int)myproc()->num_tickets);
+#endif
+
   return numTickets;
 }
 
@@ -1042,7 +1081,7 @@ int calcDP(struct proc *p)
   int SP = p->static_priority;
 
   if ((sleep_time + running_time) == 0)
-    return 5; // assume normal niceness
+    return SP; // assume normal niceness
 
   int niceness = 10 * ((int)sleep_time / (sleep_time + running_time));
   int DP = ((SP - niceness + 5) < 100) ? (SP - niceness + 5) : 100;
@@ -1069,7 +1108,11 @@ int set_priority(int new_priority, int pid)
   if (chosen)
   {
     prevSP = chosen->static_priority;
+    chosen->dynamic_priority = calcDP(chosen);
     chosen->static_priority = new_priority;
+#ifdef DEBUG
+    printf("SP = %d\n", chosen->static_priority);
+#endif
     chosen->dynamic_priority = calcDP(chosen);
     release(&chosen->lock);
   }
@@ -1083,16 +1126,16 @@ int set_priority(int new_priority, int pid)
 
 void PBS_find_times()
 {
-  // struct proc *p;
-  // p = myproc();
-  // if (!p)
-  //   return;
+  struct proc *p;
+  p = myproc();
+  if (!p)
+    return;
 
-  // (myproc()->running_time)++;
+  (myproc()->running_time)++;
   return;
 }
 
-  ///////////////// IMPLEMENTED FOR SIGALARM /////////////////
+///////////////// IMPLEMENTED FOR SIGALARM /////////////////
 uint64 sys_sigalarm(void)
 {
   int this_ticks;
@@ -1103,13 +1146,12 @@ uint64 sys_sigalarm(void)
   myproc()->num_ticks = this_ticks;
   myproc()->curr_ticks = 0;
   myproc()->sig_handler = handler;
-  return 0; 
+  return 0;
 }
 //////////////////////////////////////////////
 
 ////////////// IMPLEMENTED FOR SCHEDULER TESTING //////////////////////
-int
-waitx(uint64 addr, uint* wtime, uint* rtime)
+int waitx(uint64 addr, uint *wtime, uint *rtime)
 {
   struct proc *np;
   int havekids, pid;
@@ -1117,22 +1159,27 @@ waitx(uint64 addr, uint* wtime, uint* rtime)
 
   acquire(&wait_lock);
 
-  for(;;){
+  for (;;)
+  {
     // Scan through table looking for exited children.
     havekids = 0;
-    for(np = proc; np < &proc[NPROC]; np++){
-      if(np->parent == p){
+    for (np = proc; np < &proc[NPROC]; np++)
+    {
+      if (np->parent == p)
+      {
         // make sure the child isn't still in exit() or swtch().
         acquire(&np->lock);
 
         havekids = 1;
-        if(np->state == ZOMBIE){
+        if (np->state == ZOMBIE)
+        {
           // Found one.
           pid = np->pid;
           *rtime = np->rtime;
           *wtime = np->etime - np->ctime - np->rtime;
-          if(addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
-                                  sizeof(np->xstate)) < 0) {
+          if (addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
+                                   sizeof(np->xstate)) < 0)
+          {
             release(&np->lock);
             release(&wait_lock);
             return -1;
@@ -1147,27 +1194,48 @@ waitx(uint64 addr, uint* wtime, uint* rtime)
     }
 
     // No point waiting if we don't have any children.
-    if(!havekids || p->killed){
+    if (!havekids || p->killed)
+    {
       release(&wait_lock);
       return -1;
     }
 
     // Wait for a child to exit.
-    sleep(p, &wait_lock);  //DOC: wait-sleep
+    sleep(p, &wait_lock); // DOC: wait-sleep
   }
   return 0;
 }
 
-void
-update_time()
+void update_time()
 {
-  struct proc* p;
-  for (p = proc; p < &proc[NPROC]; p++) {
+  struct proc *p;
+  for (p = proc; p < &proc[NPROC]; p++)
+  {
     acquire(&p->lock);
-    if (p->state == RUNNING) {
+    if (p->state == RUNNING)
+    {
       p->rtime++;
     }
-    release(&p->lock); 
+    release(&p->lock);
+  }
+}
+
+void
+mlfq_update_time(){
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    switch(p->state){
+      case RUNNING:
+        p->running_time++;
+      break;
+      case SLEEPING:
+        p->sleep_time++;
+      break;
+      default:
+      break;
+    }
+    release(&p->lock);
   }
 }
 ////////////////////////////////////////////////////////////////

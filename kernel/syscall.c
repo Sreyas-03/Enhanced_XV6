@@ -103,7 +103,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
-extern uint64 sys_strace(void);
+extern uint64 sys_trace(void);
 extern uint64 sys_settickets(void);
 extern uint64 sys_set_priority(void);
 /////////////////// IMPLEMENTED FOR SIGALARM //////////////
@@ -139,7 +139,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_link] sys_link,
     [SYS_mkdir] sys_mkdir,
     [SYS_close] sys_close,
-    [SYS_strace] sys_strace,
+    [SYS_trace] sys_trace,
     [SYS_settickets] sys_settickets,
     [SYS_set_priority] sys_set_priority,
     /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
@@ -175,7 +175,7 @@ syscall_details syscall_info[] = {
     [SYS_link].name = "link",
     [SYS_mkdir].name = "mkdir",
     [SYS_close].name = "close",
-    [SYS_strace].name = "strace",
+    [SYS_trace].name = "trace",
     [SYS_settickets].name = "settickets",
     [SYS_set_priority].name = "set_priority",
     /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
@@ -209,7 +209,7 @@ syscall_details syscall_info[] = {
     [SYS_link].numArgs = 2,
     [SYS_mkdir].numArgs = 1,
     [SYS_close].numArgs = 1,
-    [SYS_strace].numArgs = 1,
+    [SYS_trace].numArgs = 1,
     [SYS_settickets].numArgs = 1,
     [SYS_set_priority].numArgs = 2,
     /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
@@ -219,7 +219,7 @@ syscall_details syscall_info[] = {
     
 };
 
-void prompt_strace(struct proc *p, int num)
+void prompt_trace(struct proc *p, int num)
 {
   printf("%d: syscall %s (", p->pid, syscall_info[num].name);
   int arg;
@@ -253,9 +253,9 @@ void syscall(void)
     p->trapframe->a0 = -1;
   }
 
-  if (num > 0 && num < NELEM(syscalls) && syscalls[num] && ((p->strace_bit>>num) & 1))
+  if (num > 0 && num < NELEM(syscalls) && syscalls[num] && ((p->trace_bit>>num) & 1))
   {
-    prompt_strace(p, num);
+    prompt_trace(p, num);
   }
   return;
 }

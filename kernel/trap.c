@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "queue.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -135,6 +136,34 @@ void usertrap(void)
     yield();
 #endif
   }
+  #if defined(MLFQ)
+
+    if(which_dev == 2){
+      struct proc *p = myproc();
+
+      if(p && p->state == RUNNING){
+        p->queue_wait_time++;
+        for(int i=0; i < p->proc_queue; i++){
+          if(queue_info.num_procs[i]){
+            p->queue_wait_time = 0;
+            queue_insert(p, p->proc_queue);
+            yield();
+          }
+        }
+
+        if(p->queue_wait_time >= queue_info.max_ticks[p->proc_queue]){
+          p->queue_wait_time = 0;
+          if(p->proc_queue >= 4)
+            queue_insert(p, 4);
+          else
+            queue_insert(p, p->proc_queue + 1);
+          yield();
+        }
+        p->queue_wait_time++;
+      }
+    }
+
+  #endif
   usertrapret();
 }
 
@@ -219,7 +248,28 @@ void kerneltrap()
 ////////////////////////////
 #endif
   }
+    #if defined(MLFQ)
 
+    if(which_dev == 2){
+      struct proc *p = myproc();
+
+      if(p && p->state == RUNNING){
+        p->queue_wait_time++;
+
+        for(int i=0; i < p->proc_queue; i++){
+          if(queue_info.num_procs[i]){
+            p->queue_wait_time = 0;
+            yield();
+          }
+        }
+
+        if(p->queue_wait_time >= queue_info.max_ticks[p->proc_queue]){
+          p->queue_wait_time = 0;
+          yield();
+        }
+      }
+    }
+    #endif
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);
@@ -233,7 +283,7 @@ void clockintr()
   /////////////// IMPLEMENTED FOR SCHEDULER TESTING ///////////////////
   update_time();
   ////////////////////////////////////////////////////////////////
-
+  mlfq_update_time(); // implemented for MLFQ
   PBS_find_times(); // added for PBS
   wakeup(&ticks);
   release(&tickslock);

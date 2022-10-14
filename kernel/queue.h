@@ -9,5 +9,5 @@ struct queue_info {
 void queue_init();  // initialises the priority queues
 void queue_insert(struct proc*, int);   // inserts proc into specified queue
 struct proc* queue_pop(int);   // pops the top priority proc from specified queue
-
-extern struct queue_info queue_info;    // making the struct accessible throughout
+void  remove_queue(struct proc *p, int qpos);
+    // making the struct accessible throughout

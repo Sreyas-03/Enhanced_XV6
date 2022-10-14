@@ -37,7 +37,7 @@ entry("sbrk");
 entry("sleep");
 entry("uptime");
 # entry("getyear"); # this is for testing purposes only, it can be removed
-entry("strace");
+entry("trace");
 entry("settickets");
 entry("set_priority");
 #/////////////////// IMPLEMENTED FOR SIGALARM ///////////////

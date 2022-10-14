@@ -71,3 +71,18 @@ struct proc* queue_pop(int queue_no)
     rotate_sched_queue(queue_no, 1);
     return retval;
 }
+
+void 
+remove_queue(struct proc *p, int qpos)
+{
+	int found = -1;
+	for(int i=0; i<NPROC; i++)
+		if(sched_queue[qpos][i] == p) found = i;
+	if(found == -1) return;
+
+	sched_queue[qpos][found] = 0;
+	for(int i=found+1; i<NPROC; i++){
+		sched_queue[qpos][i-1] = sched_queue[qpos][i];
+		if(sched_queue[qpos][i]==0) break;
+	}
+}

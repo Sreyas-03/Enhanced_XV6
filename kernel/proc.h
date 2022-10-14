@@ -98,14 +98,14 @@ struct proc {
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
-  uint64 processMask;          // Mask bits for syscall "strace"
+  uint64 processMask;          // Mask bits for syscall "trace"
   pagetable_t pagetable;       // User page table
   struct trapframe *trapframe; // data page for trampoline.S
   struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  uint32 strace_bit;           // stores the mask when strace is invoked
+  uint32 trace_bit;           // stores the mask when trace is invoked
   uint64 birth_time;           // stores the time of invocation of the process, (for FCFS)
   uint64 num_tickets;          // stores the number of tickets allocated to the process (LBS)
   uint16 static_priority;      // stores the static priority of a proc. For PBS
@@ -115,10 +115,17 @@ struct proc {
   uint64 running_time;         // stores the # ticks when it was running
   uint16 dynamic_priority;     // stores the dynamic priority for PBS
  
+  //////////////////////// IMPLEMENTED FOR MLFQ //////////////////////////
   uint16 proc_queue;           // stores the priority queue to which the proc belongs. MLFQ
   uint64 queue_wait_time;      // stores the wait time in the queue. MLFQ
   uint16 in_queue;             // flag telling whether its a part of a queue. MLFQ
+  int    sched_ct;             // time of schedule
+  uint64 cur_wait_time;
+  int queue_time[5];
+  int queue_enter_flag;
   
+  ///////////////////////////////////////////////////////////////////
+
   /////////////////// IMPLEMENTED FOR SIGALARM ///////////////
   struct trapframe* trapframe_copy;   // stores trapframe as signal is sent
   // This ensures that the value of the registers are stored when alarm occurs
