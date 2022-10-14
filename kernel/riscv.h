@@ -345,8 +345,7 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #define PTE_U (1L << 4) // user can access
 
 ///////////// COW /////////////////
-#define PTE_C (1L << 8) // copy-on-write
-#define REFINDEX(pa) ((uint64)pa >> 12)
+#define PTE_C (1L << 8) // COW bit
 //////////////////////////////////
 
 // shift a physical address to the right place for a PTE.

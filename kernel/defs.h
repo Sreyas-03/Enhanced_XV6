@@ -22,8 +22,8 @@ void mlfq_update_time();
 void remove_queue(struct proc*, int);
 
 // KALLOC.C
-int             pgfault_handler(pagetable_t, uint64);
-void            incref(void *);
+int             cow_fault_rectifier(uint64,pagetable_t);
+void            add_refs_to_pte(void *);
 
 //sysproc.c
 uint64          sys_uptime(void);

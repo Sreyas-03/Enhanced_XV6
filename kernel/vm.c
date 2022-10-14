@@ -317,18 +317,24 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     
     ////////////////// COW //////////////////////
-
     pa = PTE2PA(*pte);
-    flags = (PTE_FLAGS(*pte) | PTE_C) & (~PTE_W);
-    // if((mem = kalloc()) == 0)
-    //   goto err;
-    // memmove(mem, (char*)pa, PGSIZE);
+    
+    flags = PTE_FLAGS(*pte);
+    if (flags & PTE_V)
+    {
+      flags &= (~PTE_W);
+      flags |= PTE_C;
+    }
+    else
+    {
+      panic("invalid table");
+    }
+
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
-      // kfree(mem);
       goto err;
     }
     *pte = PA2PTE(pa) | flags;
-    incref((void *)pa);
+    add_refs_to_pte((void *)pa);
     //////////////////////////////////////////////
   }
   return 0;
@@ -363,7 +369,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     
     ////////////////// COW ////////////////////
-    if(pgfault_handler(pagetable, va0) != 0)
+    if(cow_fault_rectifier(va0,pagetable) != 0)
       return -1;
     ///////////////////////////////////////////
 

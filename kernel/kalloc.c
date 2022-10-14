@@ -9,6 +9,9 @@
 #include "riscv.h"
 #include "defs.h"
 
+#define REFINDEX(pa) ((uint64)pa >> 12)
+#define REFMAX_SIZE PHYSTOP/PGSIZE
+
 void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
@@ -23,7 +26,7 @@ struct {
   struct run *freelist;
 
   //////// COW ////////
-  int count[PHYSTOP/PGSIZE]; // ref cnts
+  int count[REFMAX_SIZE];
   //////////////////////
 
 } kmem;
@@ -31,10 +34,10 @@ struct {
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
   //////// COW ////////
   memset(kmem.count, 0, sizeof(kmem.count) / sizeof(int));
   //////////////////////
+  initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -101,43 +104,45 @@ kalloc(void)
 }
 
 //////////////// COW ///////////////////////////////
-void incref(void *pa) {
+void add_refs_to_pte(void *pa) {
   acquire(&kmem.lock);
   kmem.count[REFINDEX(pa)] += 1;
   release(&kmem.lock);
 }
 
-int pgfault_handler(pagetable_t pagetable, uint64 va) {
-  if(va >= MAXVA) return -1;
-
+int cow_fault_rectifier(uint64 va,pagetable_t pagetable) {
+  if(va >= MAXVA) 
+    return -1;
+  
   pte_t *pte = walk(pagetable, va, 0);
-  if(pte == 0) 
-    return -1;
-  if((*pte & PTE_V) == 0)
-    return -1;
-  if((*pte & PTE_U) == 0)
+  if(pte == 0 || (*pte & PTE_V) == 0)
     return -1;
 
-  // check if refcnt is 1. unset cow page if refcnt = 1, alloc a new page otherwise
-  uint64 mem, pa;
-  pa = (uint64)PTE2PA(*pte);
+  uint64 flags =  PTE_FLAGS(*pte);
+  uint64 pa = (uint64)PTE2PA(*pte);
+  char * mem;
+
   acquire(&kmem.lock);
-  if(kmem.count[REFINDEX(pa)] == 1) {
-    *pte &= ~PTE_C;
-    *pte |= PTE_W;
+  if((*pte & PTE_C) && kmem.count[REFINDEX(pa)] == 1) {
+    flags &= (~PTE_C); 
+    flags |= PTE_W;    
+    *pte = PA2PTE(pa) | flags;
     release(&kmem.lock);
     return 0;
   }
   release(&kmem.lock);
 
-  if((mem = (uint64)kalloc()) == 0) return -1;
-  memmove((void *)mem, (void *)pa, PGSIZE); // copy contents
-  kfree((void *)pa); // decrease reference, and free pa if necessary
+  mem = (char *)kalloc();
+  if(mem == 0) 
+    return -1;
 
-  // modify mappings and unset cow page
-  *pte = PA2PTE(mem) | PTE_FLAGS(*pte); 
-  *pte &= ~PTE_C; // unset PTE_C
-  *pte |= PTE_W;  // set PTE_W
+  memmove((void *)mem, (void *)pa, PGSIZE); // copy pte to pa
+  kfree((void *)pa);
+
+  //  unset cow bit and set write bit 
+  flags &= (~PTE_C); 
+  flags |= PTE_W;    
+  *pte = PA2PTE(mem) | flags;   // changing flags of pte
 
   return 0;
 }

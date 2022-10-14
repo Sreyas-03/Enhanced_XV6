@@ -32,6 +32,8 @@ void trapinithart(void)
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
+
+static 
 void usertrap(void)
 {
   int which_dev = 0;
@@ -65,26 +67,18 @@ void usertrap(void)
 
     syscall();
   }
-  ///////////////// COW ///////////////////////
-
-  else if (r_scause() == 13 || r_scause() == 15)
-  {
-    uint64 va = r_stval();
-    if (va >= MAXVA)
-      setkilled(p);
-    else if (va >= p->sz)
-      setkilled(p);
-    else if (va < p->trapframe->sp && va >= PGROUNDDOWN(p->trapframe->sp) - PGSIZE)
-      setkilled(p);
-    else if (pgfault_handler(p->pagetable, va) != 0)
-      setkilled(p);
-  }
-  ////////////////////////////////////////////////////////
 
   else if ((which_dev = devintr()) != 0)
   {
     // ok
   }
+  ///////////////// COW ///////////////////////
+  else if (r_scause() == 13 || r_scause() == 15)
+  {
+    if (cow_fault_rectifier(r_stval(),p->pagetable) == -1)
+      setkilled(p);
+  }
+  ////////////////////////////////////////////////////////
   else
   {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
