@@ -192,7 +192,7 @@ found:
   p->proc_queue = 0;
   p->cur_wait_time = 0;
   p->queue_enter_flag = 0;
-  for(int i=0; i<5; i++)
+  for (int i = 0; i < 5; i++)
     p->queue_time[i] = 0;
   ////////////////////////////////////////////////////////////////////////
 
@@ -259,7 +259,6 @@ freeproc(struct proc *p)
   p->sleep_time = 0;
   p->sched_ct = 0;
   ////////////////////////////////////////////////////////////////
-
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -634,9 +633,9 @@ void fcfs(struct cpu *c)
 void lotteryBased(struct cpu *c)
 {
   uint64 totalNumTickets = 0, ticketCnt = 0;
-  #ifdef DEBUG_settickets
-    printf("LBS\n");
-  #endif
+#ifdef DEBUG_settickets
+  printf("LBS\n");
+#endif
   for (int i = 0; i < NPROC; i++)
   {
     struct proc *p = &proc[i];
@@ -745,40 +744,52 @@ void priority_based(struct cpu *c)
 
 //////////////////////////////////////////////////////////////////
 
-////////////////////// MLFQ SCHEDULING ///////////////////////////
-  void mlfq(struct cpu *c)
+void addProcQueue()
+{
+  for (struct proc *p = proc; p < &proc[NPROC]; p++)
   {
+    if (p->state == RUNNABLE && !p->in_queue)
+      queue_insert(p, p->proc_queue);
+  }
+}
 
-    for(struct proc *p = proc; p < &proc[NPROC]; p++){
-      if(p->in_queue && p->cur_wait_time > AGING_TICKS && p->proc_queue > 0){
+
+////////////////////// MLFQ SCHEDULING ///////////////////////////
+void mlfq(struct cpu *c)
+{
+  for (struct proc *p = proc; p < &proc[NPROC]; p++)
+  {
+    if ( p->proc_queue > 0)
+    {
+      if (p->in_queue && p->cur_wait_time > AGING_TICKS)
+      {
         remove_queue(p, p->proc_queue);
-        queue_insert(p, p->proc_queue-1);
-      }
-    }
-
-    for(struct proc *p = proc; p < &proc[NPROC]; p++){
-      if(p->state == RUNNABLE && !p->in_queue){
-        int to = (p->proc_queue == 4) ? 4 : p->proc_queue;
-        queue_insert(p, to);
-      }
-    }
-    for(int qpos = 0; qpos < 5; qpos++){
-      while(queue_info.num_procs[qpos] > 0){
-        struct proc *bestproc = queue_pop(qpos);
-        bestproc->state = RUNNING;
-        bestproc->sched_ct++;
-        bestproc->cur_wait_time = 0;
-        acquire(&bestproc->lock);
-
-        c->proc = bestproc;
-        swtch(&c->context, &bestproc->context);
-        c->proc = 0;
-        
-        release(&bestproc->lock);
-        return;
+        queue_insert(p, p->proc_queue - 1);
       }
     }
   }
+
+  addProcQueue();
+  for (int queue_num = 0; queue_num < NQUEUE; queue_num++)
+  {
+    while (queue_info.num_procs[queue_num] > 0)
+    {
+      struct proc *chosenproc = queue_pop(queue_num);
+      acquire(&chosenproc->lock);
+
+      chosenproc->state = RUNNING;
+      chosenproc->sched_ct++;
+      chosenproc->cur_wait_time = 0;
+
+      c->proc = chosenproc;
+      swtch(&c->context, &chosenproc->context);
+      c->proc = 0;
+
+      release(&chosenproc->lock);
+      return;
+    }
+  }
+}
 
 //////////////////////////////////////////////////////////////////
 
@@ -803,25 +814,25 @@ void scheduler(void)
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
-    #ifdef RR
-          roundRobin(c);
-    #endif
+#ifdef RR
+      roundRobin(c);
+#endif
 
-    #ifdef FCFS
-          fcfs(c);
-    #endif
+#ifdef FCFS
+      fcfs(c);
+#endif
 
-    #ifdef LBS
-          lotteryBased(c);
-    #endif
+#ifdef LBS
+      lotteryBased(c);
+#endif
 
-    #ifdef PBS
-          priority_based(c);
-    #endif
+#ifdef PBS
+      priority_based(c);
+#endif
 
-    #ifdef MLFQ
-          mlfq(c);
-    #endif
+#ifdef MLFQ
+      mlfq(c);
+#endif
     }
   }
 }
@@ -1220,21 +1231,16 @@ void update_time()
   }
 }
 
-void
-mlfq_update_time(){
+void mlfq_update_time()
+{
   struct proc *p;
-  for(p = proc; p < &proc[NPROC]; p++){
+  for (p = proc; p < &proc[NPROC]; p++)
+  {
     acquire(&p->lock);
-    switch(p->state){
-      case RUNNING:
-        p->running_time++;
-      break;
-      case SLEEPING:
-        p->sleep_time++;
-      break;
-      default:
-      break;
-    }
+    if (p->state == RUNNING)
+      p->running_time++;
+    else
+      p->sleep_time++;
     release(&p->lock);
   }
 }

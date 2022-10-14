@@ -1,10 +1,24 @@
 # Enhancing xv-6
-## Roll numbers - 2021111016 & 2021111007
+```
+Team members -
+    Sreenivas BP - 2021111007
+    S Sreyas - 2021111016
+```
 ___
 
 This assignment was developed and tested in -
 - Distro      - Ubuntu 22.04
 - Language    - ANSI C
+
+## Strace -
+- the macro for strace was defined
+- the number of arguments taken, and the name of the system call was entered into the struct (these changes are done in `syscall.h` and `syscall.c`)
+- a new key(processMask) is added to struct proc in `proc.h`
+- create the file `strace.c` to enable the usercall of this funciton
+- changes were done to `usys.pl`, `makefile` and `user.h` to enable the usercall
+
+## Sigalarm and Sigreturn -
+- The required macros were declared and number and name of the system calls were added to the struct. (changes in `syscall.h` and `syscall.c`)
 
 ## Round Robin Scheduling - 
 - It is the default scheduler of xv-6
@@ -66,11 +80,38 @@ This assignment was developed and tested in -
 - if a process reliquishes control for IO reasons, it is added to the end of the same queue it previously was in
 - if the process has used its complete share of time, its added to the next queue (unless its already in the last queue)
 - There will be no tie-breaks, as the processes are added to each queue in an order. (or in fact, the process that has lower index in proc array will be run first if its in the same queue).
-- (The graph plotter is not working for some reason look into it)
+- MLFQ works only for 1 CPU
 ___
 
 ## Observation -
 ### ROUND ROBIN - 
-![alt text](/s_imgs/S2.png)
+![alt text](/s_imgs/RR_SS1.png)
+![alt text](/s_imgs/RR_SS3.png)
+![alt text](/s_imgs/RR_SS5.png)
+
 ### FCFS-
-![alt text](/s_imgs/S1.png)
+![alt text](/s_imgs/FCFS_SS1.png)
+![alt text](/s_imgs/FCFS_SS3.png)
+![alt text](/s_imgs/FCFS_SS5.png)
+### LBS -
+![alt text](/s_imgs/LBS_SS1.png)
+![alt text](/s_imgs/LBS_SS3.png)
+![alt text](/s_imgs/LBS_SS5.png)
+### PBS -
+![alt text](/s_imgs/PBS_SS1.png)
+![alt text](/s_imgs/PBS_SS3.png)
+![alt text](/s_imgs/PBS_SS5.png)
+### MLFQ - 
+![alt text](/s_imgs/MLFQ_SS1.png)
+
+## Analysis -
+![alt text](/s_imgs/ANALYSIS.png)
+
+- from the analysis, we can infer that, for the given set of processes -
+> FCFS > PBS > LBS > RR > MLFQ
+
+(order by ratio of runtime to waittime, run one 1 CPU)
+- MLFQ will work better when the number of processes increase and when CPU bound processes become more intensive
+> FCFS >> PBS > RR > LBS
+(order by ration of runtime to waittime, when run on multiple CPUs)
+- FCFS outperforms all other schedulers when multiple CPUs are used

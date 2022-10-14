@@ -73,16 +73,19 @@ struct proc* queue_pop(int queue_no)
 }
 
 void 
-remove_queue(struct proc *p, int qpos)
+remove_queue(struct proc *p, int queue_num)
 {
 	int found = -1;
 	for(int i=0; i<NPROC; i++)
-		if(sched_queue[qpos][i] == p) found = i;
-	if(found == -1) return;
+		if(sched_queue[queue_num][i] == p)
+            found = i;
+	if(found == -1)
+        return;
 
-	sched_queue[qpos][found] = 0;
+	sched_queue[queue_num][found] = 0;
 	for(int i=found+1; i<NPROC; i++){
-		sched_queue[qpos][i-1] = sched_queue[qpos][i];
-		if(sched_queue[qpos][i]==0) break;
+		sched_queue[queue_num][i-1] = sched_queue[queue_num][i];
+		if(sched_queue[queue_num][i]==0) break;
 	}
+    queue_info.num_procs[queue_num]--;
 }

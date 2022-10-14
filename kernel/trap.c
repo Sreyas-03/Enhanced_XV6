@@ -137,26 +137,29 @@ void usertrap(void)
 #endif
   }
   #if defined(MLFQ)
-
-    if(which_dev == 2){
-      struct proc *p = myproc();
-
-      if(p && p->state == RUNNING){
+    ////////////////// this is due to timer interrup ///
+    if(which_dev == 2)
+    {
+      struct proc* p;
+      p = myproc();
+      if(p && p->state == RUNNING)
+      {
         p->queue_wait_time++;
         for(int i=0; i < p->proc_queue; i++){
-          if(queue_info.num_procs[i]){
+          if(queue_info.num_procs[i])
+          {
             p->queue_wait_time = 0;
             queue_insert(p, p->proc_queue);
             yield();
           }
         }
 
-        if(p->queue_wait_time >= queue_info.max_ticks[p->proc_queue]){
+        if(queue_info.max_ticks[p->proc_queue] <= p->queue_wait_time)
+        {
           p->queue_wait_time = 0;
-          if(p->proc_queue >= 4)
-            queue_insert(p, 4);
-          else
-            queue_insert(p, p->proc_queue + 1);
+          int newQueue = p->proc_queue+1;
+          newQueue = (newQueue>4)?4:newQueue;
+          queue_insert(p, newQueue);
           yield();
         }
         p->queue_wait_time++;
@@ -250,20 +253,24 @@ void kerneltrap()
   }
     #if defined(MLFQ)
 
-    if(which_dev == 2){
-      struct proc *p = myproc();
-
-      if(p && p->state == RUNNING){
+    if(which_dev == 2)
+    {
+      struct proc* p;
+      p = myproc();
+      if(p && p->state == RUNNING)
+      {
         p->queue_wait_time++;
-
-        for(int i=0; i < p->proc_queue; i++){
-          if(queue_info.num_procs[i]){
+        for(int i=0; i < p->proc_queue; i++)
+        {
+          if(queue_info.num_procs[i])
+          {
             p->queue_wait_time = 0;
             yield();
           }
         }
 
-        if(p->queue_wait_time >= queue_info.max_ticks[p->proc_queue]){
+        if(queue_info.max_ticks[p->proc_queue] <= p->queue_wait_time)
+        {
           p->queue_wait_time = 0;
           yield();
         }

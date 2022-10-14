@@ -9,7 +9,6 @@
 
 int main()
 {
-  printf("SCHEDULER = %s\n", "LBS");
   int n, pid;
   int wtime, rtime;
   int twtime = 0, trtime = 0;
@@ -58,7 +57,7 @@ int main()
   }
   for (; n > 0; n--)
   {
-    if (waitx(0, &rtime, &wtime) >= 0)
+    if (waitx(0, &wtime, &rtime) >= 0)
     {
       trtime += rtime;
       twtime += wtime;

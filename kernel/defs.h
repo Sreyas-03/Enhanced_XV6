@@ -138,6 +138,7 @@ void            update_time();
 void 			queue_init(void);
 void            queue_insert(struct proc*, int); 
 struct proc*    queue_pop(int);
+void            remove_queue(struct proc *p, int qpos);
 
 //////////////////////////////////////////////////////////
 
